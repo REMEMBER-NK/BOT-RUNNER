@@ -31,6 +31,9 @@ const { File } = require("megajs");
 
 const ownerNumber = config.OWNER_NUM;
 
+// GitHub Actions auto-trigger එකෙන් එන Target User ව අල්ලා ගැනීම
+const targetUser = process.env.TARGET_USER || (ownerNumber + "@s.whatsapp.net");
+
 //===================SESSION-AUTH============================
 if (!fs.existsSync(__dirname + "/auth_info_baileys/creds.json")) {
   if (!config.SESSION_ID)
@@ -61,7 +64,7 @@ async function connectToWA() {
   const prefix = config.PREFIX;
   //===========================
 
-  console.log("Connecting ❤️𝐑_𝐎_𝐁_𝐈_𝐍❤️");
+  console.log("Connecting 🙉ᴿᴱᴹᴱᴹᴮᴱᴿ ᴹᴰ🙉");
   const { state, saveCreds } = await useMultiFileAuthState(
     __dirname + "/auth_info_baileys/"
   );
@@ -76,7 +79,7 @@ async function connectToWA() {
     version,
   });
 
-  robin.ev.on("connection.update", (update) => {
+  robin.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect } = update;
     if (connection === "close") {
       if (
@@ -92,26 +95,30 @@ async function connectToWA() {
           require("./plugins/" + plugin);
         }
       });
-      console.log("❤️𝐑_𝐎_𝐁_𝐈_𝐍❤️ installed successful ✅");
-      console.log("❤️𝐑_𝐎_𝐁_𝐈_𝐍❤️ connected to whatsapp ✅");
+      console.log("🙉ᴿᴱᴹᴱᴹᴮᴱᴿ ᴹᴰ🙉 installed successful ✅");
+      console.log("🙉ᴿᴱᴹᴱᴹᴮᴱᴿ ᴹᴰ🙉 connected to whatsapp ✅");
 
-      let up = `❤️𝐑_𝐎_𝐁_𝐈_𝐍❤️ connected successful ✅`;
-      let up1 = `Hello Robin, I made bot successful`;
+      let up = `🙉ᴿᴱᴹᴱᴹᴮᴱᴿ ᴹᴰ🙉 connected successful ✅`;
+      let up1 = `✨ *Hello! Your ᴿᴱᴹᴱᴹᴮᴱᴿ ᴹᴰ Bot is Auto Activated!* 🎉\n\nType *.menu* to get all commands.`;
 
-      robin.sendMessage(ownerNumber + "@s.whatsapp.net", {
+      // 1. Bot Owner (ඔයාට) යන Message එක
+      await robin.sendMessage(ownerNumber + "@s.whatsapp.net", {
         image: {
-          url: `https://raw.githubusercontent.com/Dark-Robin/Bot-Helper/refs/heads/main/autoimage/Bot%20robin%20cs.jpg`,
+          url: `https://i.ibb.co/8gycytBr/pft4mmkmwhrmr0d00mf8pgz1bc-result.png`,
         },
         caption: up,
       });
-      robin.sendMessage("94705900209@s.whatsapp.net", {
+
+      // 2. Auto Pair වුණු User ට යන Message එක (Dynamic Auto Verify)
+      await robin.sendMessage(targetUser, {
         image: {
-          url: `https://raw.githubusercontent.com/Dark-Robin/Bot-Helper/refs/heads/main/autoimage/Bot%20robin%20cs.jpg`,
+          url: `https://i.ibb.co/8gycytBr/pft4mmkmwhrmr0d00mf8pgz1bc-result.png`,
         },
         caption: up1,
       });
     }
   });
+
   robin.ev.on("creds.update", saveCreds);
   robin.ev.on("messages.upsert", async (mek) => {
     mek = mek.messages[0];
@@ -122,7 +129,7 @@ async function connectToWA() {
         : mek.message;
     if (
       mek.key &&
-      mek.key.remoteJid === "status@broadcast") return  
+      mek.key.remoteJid === "status@broadcast") return;  
     
     const m = sms(robin, mek);
     const type = getContentType(mek.message);
@@ -391,11 +398,11 @@ async function connectToWA() {
         });
       }
     });
-    //============================================================================
   });
 }
+
 app.get("/", (req, res) => {
-  res.send("hey, ❤️𝐑_𝐎_𝐁_𝐈_𝐍❤️ started✅");
+  res.send("hey, 🙉ᴿᴱᴹᴱᴹᴮᴱᴿ ᴹᴰ🙉 started✅");
 });
 app.listen(port, () =>
   console.log(`Server listening on port http://localhost:${port}`)
