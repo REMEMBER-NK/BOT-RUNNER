@@ -104,7 +104,7 @@ async function connectToWA() {
       // 1. Bot Owner (ඔයාට) යන Message එක
       await robin.sendMessage(ownerNumber + "@s.whatsapp.net", {
         image: {
-          url: `https://i.ibb.co/8gycytBr/pft4mmkmwhrmr0d00mf8pgz1bc-result.png`,
+          url: `https://raw.githubusercontent.com/REMEMBER-NK/Bot-helpur/refs/heads/main/pft4mmkmwhrmr0d00mf8pgz1bc_result_.png`,
         },
         caption: up,
       });
@@ -112,7 +112,7 @@ async function connectToWA() {
       // 2. Auto Pair වුණු User ට යන Message එක (Dynamic Auto Verify)
       await robin.sendMessage(targetUser, {
         image: {
-          url: `https://i.ibb.co/8gycytBr/pft4mmkmwhrmr0d00mf8pgz1bc-result.png`,
+          url: `https://raw.githubusercontent.com/REMEMBER-NK/Bot-helpur/refs/heads/main/pft4mmkmwhrmr0d00mf8pgz1bc_result_.png`,
         },
         caption: up1,
       });
