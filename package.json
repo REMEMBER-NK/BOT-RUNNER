@@ -1,12 +1,12 @@
 {
-  "name": "❤️𝐑_𝐎_𝐁_𝐈_𝐍❤️",
+  "name": "R_O_B_I_N",
   "version": "1.0.0",
   "description": "A WhatsApp bot created using Node.js",
   "main": "index.js",
   "scripts": {
-    "start": "pm2 start index.js --deep-monitoring --attach --name ❤️𝐑_𝐎_𝐁_𝐈_𝐍❤️",
-    "stop": "pm2 stop ❤️𝐑_𝐎_𝐁_𝐈_𝐍❤️",
-    "restart": "pm2 restart ❤️𝐑_𝐎_𝐁_𝐈_𝐍❤️"
+    "start": "pm2 start index.js --deep-monitoring --attach --name ROBIN",
+    "stop": "pm2 stop ROBIN",
+    "restart": "pm2 restart ROBIN"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^6.7.9",
@@ -26,7 +26,6 @@
     "api-dylux": "^1.8.5",
     "mongoose": "^8.0.0",
     "fb-downloader-scrapper": "^2.0.0",
-    "canvas": "^3.0.1",
     "youtubedl-core": "^4.11.7"
   }
 }
