@@ -5,8 +5,8 @@
   "main": "index.js",
   "scripts": {
     "start": "pm2 start index.js --deep-monitoring --attach --name REMEMBER",
-    "stop": "pm2 stop REMEMBER",
-    "restart": "pm2 restart REMEMBER"
+    "stop": "pm2 stop remember",
+    "restart": "pm2 restart remember"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^6.7.24",
