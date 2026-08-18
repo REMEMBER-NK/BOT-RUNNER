@@ -1,32 +1,22 @@
-const { readEnv } = require('../lib/mongodb'); // Fix: DB එක වෙනුවට mongodb.js එකෙන් ගත්තේ
-const { cmd, commands } = require('../command');
+const { cmd } = require('../command');
 
 cmd({
     pattern: "alive",
-    desc: "Check bot online or no.",
+    desc: "Check bot status",
     category: "main",
     filename: __filename
 },
-async(robin, mek, m, { from, reply }) => {
+async (conn, mek, m, { from, reply }) => {
     try {
-        let config = {};
-        try {
-            config = await readEnv();
-        } catch (dbErr) {
-            console.log("DB Read Error, using fallback options");
-        }
-
-        // Fallback options (DB එකේ values නැත්නම් වැඩ කරන්න)
-        const aliveImg = config.ALIVE_IMG || "https://i.ibb.co/689N3M9/thumb.jpg"; // Default Image Link එකක්
-        const aliveMsg = config.ALIVE_MSG || "*ROBIN-MD is Active & Online!* 🚀";
-
-        return await robin.sendMessage(from, {
-            image: { url: aliveImg },
+        const aliveMsg = `*👋 Hey! ROBIN-MD is Alive & Active Now!*\n\n🤖 *Bot Name:* ROBIN-MD\n⚙️ *Status:* Online & Working\n\n_Type .menu to see all commands._`;
+        
+        return await conn.sendMessage(from, {
+            image: { url: "https://raw.githubusercontent.com/REMEMBER-NK/Bot-helpur/refs/heads/main/31322071b2dd4757a80b264729c42ee7.png" },
             caption: aliveMsg
         }, { quoted: mek });
 
     } catch (e) {
-        console.log("Alive Command Error:", e);
-        reply(`❌ Error: ${e.message || e}`);
+        console.log(e);
+        reply(`❌ Error: ${e.message}`);
     }
 });
