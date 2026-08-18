@@ -1,12 +1,12 @@
 {
-  "name": "R_O_B_I_N",
+  "name": "REMEMBER",
   "version": "1.0.0",
-  "description": "A WhatsApp bot created using Node.js",
+  "description": "POWER FULL WHATSAPP MINI BOT",
   "main": "index.js",
   "scripts": {
-    "start": "pm2 start index.js --deep-monitoring --attach --name ROBIN",
-    "stop": "pm2 stop ROBIN",
-    "restart": "pm2 restart ROBIN"
+    "start": "pm2 start index.js --deep-monitoring --attach --name REMEMBER",
+    "stop": "pm2 stop REMEMBER",
+    "restart": "pm2 restart REMEMBER"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^6.7.9",
