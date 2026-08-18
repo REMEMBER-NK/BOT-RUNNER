@@ -84,7 +84,7 @@ ${menu.group}
 ${menu.search}
 
 
-🥶𝐌𝐚𝐝𝐞 𝐛𝐲 𝐒_𝐈_𝐇_𝐈_𝐋_𝐄_𝐋🥶
+🥶MADE BY REMEMBER🥶
 
 > ROBIN MENU MSG
 `;
