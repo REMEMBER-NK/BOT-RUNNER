@@ -8,13 +8,6 @@ const mongoose = require('mongoose');
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// Dynamic Session Schema for MongoDB
-const SessionSchema = new mongoose.Schema({
-    id: { type: String, required: true, unique: true },
-    data: { type: Object, required: true }
-});
-const Session = mongoose.models.Session || mongoose.model('Session', SessionSchema);
-
 async function startBot() {
     const mongoUri = process.env.MONGODB; 
     if (!mongoUri) return console.log("❌ MONGODB Variable is missing!");
@@ -26,24 +19,34 @@ async function startBot() {
         return console.log("❌ DB Error:", err);
     }
 
-    // 1. Database එකේ තිබෙන ඕනෑම Session Data එකක් Fetch කිරීම
+    // Dynamic Session Search Across All Collections
     try {
         const sessionDir = path.join(__dirname, 'session');
-        if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir);
+        if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
 
-        const dbSession = await Session.findOne({ $or: [{ id: 'creds' }, { id: 'session' }] });
-        
-        if (dbSession && dbSession.data) {
-            fs.writeFileSync(path.join(sessionDir, 'creds.json'), JSON.stringify(dbSession.data));
-            console.log("✅ Loaded Session Credentials from MongoDB!");
-        } else {
-            console.log("⚠️ No Session Data Found in Database!");
+        const collections = await mongoose.connection.db.listCollections().toArray();
+        let sessionFound = false;
+
+        for (let col of collections) {
+            const data = await mongoose.connection.db.collection(col.name).findOne({});
+            if (data && (data.creds || data.data || data.noiseKey)) {
+                const credsData = data.creds || data.data || data;
+                delete credsData._id; // Remove MongoDB internal ID
+                fs.writeFileSync(path.join(sessionDir, 'creds.json'), JSON.stringify(credsData, null, 2));
+                console.log(`✅ Loaded Session Credentials from Database Collection: [${col.name}]`);
+                sessionFound = true;
+                break;
+            }
+        }
+
+        if (!sessionFound) {
+            console.log("⚠️ No Valid Session Data Found in Any Collection!");
         }
     } catch (e) {
         console.log("⚠️ Session Fetch Error:", e.message);
     }
 
-    // 2. Load Plugins/Commands
+    // Load Plugins
     const pluginsDir = path.join(__dirname, 'plugins');
     if (fs.existsSync(pluginsDir)) {
         fs.readdirSync(pluginsDir).forEach((plugin) => {
@@ -53,7 +56,7 @@ async function startBot() {
         });
     }
 
-    // 3. Auth State Init
+    // Auth & WhatsApp Socket
     const { state, saveCreds } = await useMultiFileAuthState('./session');
     const { version } = await fetchLatestBaileysVersion();
 
@@ -65,16 +68,8 @@ async function startBot() {
         version
     });
 
-    // Creds Update වෙද්දී DB එකටත් Sync කිරීම
-    robin.ev.on('creds.update', async () => {
-        await saveCreds();
-        try {
-            const credsData = JSON.parse(fs.readFileSync(path.join(__dirname, 'session', 'creds.json')));
-            await Session.findOneAndUpdate({ id: 'creds' }, { data: credsData }, { upsert: true });
-        } catch (e) {}
-    });
+    robin.ev.on('creds.update', saveCreds);
 
-    // 4. Connection Status Listener
     robin.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect } = update;
         if (connection === 'connecting') {
@@ -87,7 +82,6 @@ async function startBot() {
         }
     });
 
-    // 5. Message Command Execution
     const events = require('./command');
     robin.ev.on('messages.upsert', async (chatUpdate) => {
         try {
