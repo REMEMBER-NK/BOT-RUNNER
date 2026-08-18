@@ -19,31 +19,35 @@ async function startBot() {
         return console.log("❌ DB Error:", err);
     }
 
-    // Dynamic Session Search Across All Collections
-    try {
-        const sessionDir = path.join(__dirname, 'session');
-        if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
+    // 1. Database එකෙන් Auto Session එක අල්ලන පාර
+    const sessionDir = path.join(__dirname, 'session');
+    if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
 
-        const collections = await mongoose.connection.db.listCollections().toArray();
-        let sessionFound = false;
-
-        for (let col of collections) {
-            const data = await mongoose.connection.db.collection(col.name).findOne({});
-            if (data && (data.creds || data.data || data.noiseKey)) {
-                const credsData = data.creds || data.data || data;
-                delete credsData._id; // Remove MongoDB internal ID
-                fs.writeFileSync(path.join(sessionDir, 'creds.json'), JSON.stringify(credsData, null, 2));
-                console.log(`✅ Loaded Session Credentials from Database Collection: [${col.name}]`);
-                sessionFound = true;
-                break;
+    async function checkAndLoadSession() {
+        try {
+            const collections = await mongoose.connection.db.listCollections().toArray();
+            for (let col of collections) {
+                const docs = await mongoose.connection.db.collection(col.name).find({}).toArray();
+                for (let doc of docs) {
+                    // WEB-PAIR එකෙන් එන Session Objects අඳුනා ගැනීම
+                    if (doc.creds || doc.data || doc.noiseKey || doc.me) {
+                        const sessionData = doc.creds || (typeof doc.data === 'string' ? JSON.parse(doc.data) : doc.data) || doc;
+                        delete sessionData._id;
+                        fs.writeFileSync(path.join(sessionDir, 'creds.json'), JSON.stringify(sessionData, null, 2));
+                        console.log(`✅ Loaded Auto-Verified Session from: [${col.name}]`);
+                        return true;
+                    }
+                }
             }
+        } catch (e) {
+            console.log("⚠️ Session Check Error:", e.message);
         }
+        return false;
+    }
 
-        if (!sessionFound) {
-            console.log("⚠️ No Valid Session Data Found in Any Collection!");
-        }
-    } catch (e) {
-        console.log("⚠️ Session Fetch Error:", e.message);
+    const isLoaded = await checkAndLoadSession();
+    if (!isLoaded) {
+        console.log("⚠️ Waiting for Auto-Verify Session from WEB-PAIR...");
     }
 
     // Load Plugins
@@ -56,7 +60,7 @@ async function startBot() {
         });
     }
 
-    // Auth & WhatsApp Socket
+    // 2. Auth & WhatsApp Socket Setup
     const { state, saveCreds } = await useMultiFileAuthState('./session');
     const { version } = await fetchLatestBaileysVersion();
 
@@ -70,18 +74,27 @@ async function startBot() {
 
     robin.ev.on('creds.update', saveCreds);
 
+    // 3. Auto Reconnect & Verify Status Listener
     robin.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect } = update;
+        
         if (connection === 'connecting') {
-            console.log('🔄 Connecting to WhatsApp...');
+            console.log('🔄 Connecting / Auto-Verifying with WhatsApp...');
         } else if (connection === 'close') {
-            const shouldReconnect = (lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut;
-            if (shouldReconnect) startBot();
+            const statusCode = (lastDisconnect?.error)?.output?.statusCode;
+            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+            
+            // Session එකක් DB එකේ නැතිව Fail වුණානම් ආයෙ DB එක Check කරලා Reconnect වීම
+            if (shouldReconnect) {
+                await checkAndLoadSession();
+                setTimeout(startBot, 3000);
+            }
         } else if (connection === 'open') {
-            console.log('✅ ROBIN-MD Connected Successfully!');
+            console.log('✅ ROBIN-MD Auto-Verified & Connected Successfully!');
         }
     });
 
+    // Message Command Logic
     const events = require('./command');
     robin.ev.on('messages.upsert', async (chatUpdate) => {
         try {
