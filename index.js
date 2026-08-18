@@ -22,7 +22,6 @@ async function startBot() {
     const sessionDir = path.join(__dirname, 'session');
     if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
 
-    // DB එකෙන් Session කියවන Clean Logic එක
     async function loadSessionFromDB() {
         try {
             const collections = await mongoose.connection.db.listCollections().toArray();
@@ -43,13 +42,8 @@ async function startBot() {
         return false;
     }
 
-    const isLoaded = await loadSessionFromDB();
+    await loadSessionFromDB();
 
-    if (!isLoaded) {
-        console.log("⚠️ Waiting for Auto-Verify Pairing from WEB-PAIR...");
-    }
-
-    // Load Plugins
     const pluginsDir = path.join(__dirname, 'plugins');
     if (fs.existsSync(pluginsDir)) {
         fs.readdirSync(pluginsDir).forEach((plugin) => {
@@ -62,17 +56,18 @@ async function startBot() {
     const { state, saveCreds } = await useMultiFileAuthState('./session');
     const { version } = await fetchLatestBaileysVersion();
 
-    const robin = makeWASocket({
+    const rememberBot = makeWASocket({
         logger: pino({ level: 'silent' }),
         printQRInTerminal: false,
-        browser: ['ROBIN-MD', 'Safari', '1.0.0'],
+        browser: ['REMEMBER-MD', 'Chrome', '1.0.0'],
         auth: state,
-        version
+        version,
+        syncFullHistory: false
     });
 
-    robin.ev.on('creds.update', saveCreds);
+    rememberBot.ev.on('creds.update', saveCreds);
 
-    robin.ev.on('connection.update', async (update) => {
+    rememberBot.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect } = update;
         
         if (connection === 'connecting') {
@@ -81,18 +76,22 @@ async function startBot() {
             const statusCode = (lastDisconnect?.error)?.output?.statusCode;
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
             
-            if (shouldReconnect) {
-                await loadSessionFromDB();
+            console.log(`Connection closed. Reason: ${statusCode}. Reconnecting: ${shouldReconnect}`);
+
+            if (statusCode === DisconnectReason.loggedOut) {
+                console.log("❌ Session Logged Out from WhatsApp. Cleaning directory...");
+                if (fs.existsSync(sessionDir)) fs.rmSync(sessionDir, { recursive: true, force: true });
+                await mongoose.connection.db.collection('sessions').deleteMany({});
+            } else if (shouldReconnect) {
                 setTimeout(startBot, 3000);
             }
         } else if (connection === 'open') {
-            console.log('✅ ROBIN-MD Auto-Verified & Connected Successfully!');
+            console.log('✅ REMEMBER-MD Connected Successfully!');
         }
     });
 
-    // Commands Logic
     const events = require('./command');
-    robin.ev.on('messages.upsert', async (chatUpdate) => {
+    rememberBot.ev.on('messages.upsert', async (chatUpdate) => {
         try {
             const mek = chatUpdate.messages[0];
             if (!mek || !mek.message) return;
@@ -104,8 +103,8 @@ async function startBot() {
                 const commandName = body.slice(1).split(" ")[0].toLowerCase();
                 const cmd = events.commands.find((c) => c.pattern === commandName);
                 if (cmd) {
-                    const reply = (text) => robin.sendMessage(from, { text }, { quoted: mek });
-                    cmd.function(robin, mek, mek, { from, reply, body });
+                    const reply = (text) => rememberBot.sendMessage(from, { text }, { quoted: mek });
+                    cmd.function(rememberBot, mek, mek, { from, reply, body });
                 }
             }
         } catch (e) {
@@ -114,7 +113,7 @@ async function startBot() {
     });
 }
 
-app.get('/', (req, res) => res.send('ROBIN-MD Bot Running!'));
+app.get('/', (req, res) => res.send('REMEMBER-MD Bot Running!'));
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 startBot();
