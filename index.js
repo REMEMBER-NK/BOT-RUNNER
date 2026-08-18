@@ -1,22 +1,25 @@
-const { default: makeWASocket, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const fs = require('fs');
 const path = require('path');
 const pino = require('pino');
 const express = require('express');
 const mongoose = require('mongoose');
-const { useMongoDBAuthState } = require('./lib/mongodb'); // DB Auth State Loader
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 
 async function startBot() {
     const mongoUri = process.env.MONGODB; 
-    if (!mongoUri) return console.log("❌ MONGODB Variable missing!");
+    if (mongoUri) {
+        try {
+            await mongoose.connect(mongoUri);
+            console.log("✅ Mongoose Connected Successfully!");
+        } catch (err) {
+            console.log("❌ DB Error:", err);
+        }
+    }
 
-    await mongoose.connect(mongoUri);
-    console.log("✅ Mongoose Connected Successfully!");
-
-    // Load Commands/Plugins
+    // Plugins load කිරීම
     const pluginsDir = path.join(__dirname, 'plugins');
     if (fs.existsSync(pluginsDir)) {
         fs.readdirSync(pluginsDir).forEach((plugin) => {
@@ -26,8 +29,8 @@ async function startBot() {
         });
     }
 
-    // Auto Session Fetch from MongoDB
-    const { state, saveCreds } = await useMongoDBAuthState(mongoose.connection);
+    // Auth State
+    const { state, saveCreds } = await useMultiFileAuthState('./session');
     const { version } = await fetchLatestBaileysVersion();
 
     const robin = makeWASocket({
@@ -50,20 +53,26 @@ async function startBot() {
         }
     });
 
+    // Message processing logic
     const events = require('./command');
     robin.ev.on('messages.upsert', async (chatUpdate) => {
-        const mek = chatUpdate.messages[0];
-        if (!mek || !mek.message) return;
-        const from = mek.key.remoteJid;
-        const body = mek.message.conversation || mek.message.extendedTextMessage?.text || "";
-        
-        if (body.startsWith('.')) {
-            const commandName = body.slice(1).split(" ")[0].toLowerCase();
-            const cmd = events.commands.find((c) => c.pattern === commandName);
-            if (cmd) {
-                const reply = (text) => robin.sendMessage(from, { text }, { quoted: mek });
-                cmd.function(robin, mek, mek, { from, reply, body });
+        try {
+            const mek = chatUpdate.messages[0];
+            if (!mek || !mek.message) return;
+
+            const from = mek.key.remoteJid;
+            const body = mek.message.conversation || mek.message.extendedTextMessage?.text || "";
+
+            if (body.startsWith('.')) {
+                const commandName = body.slice(1).split(" ")[0].toLowerCase();
+                const cmd = events.commands.find((c) => c.pattern === commandName);
+                if (cmd) {
+                    const reply = (text) => robin.sendMessage(from, { text }, { quoted: mek });
+                    cmd.function(robin, mek, mek, { from, reply, body });
+                }
             }
+        } catch (e) {
+            console.log("Message Handler Error:", e);
         }
     });
 }
