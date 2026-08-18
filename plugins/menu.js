@@ -86,7 +86,7 @@ ${menu.search}
 
 🥶MADE BY REMEMBER🥶
 
-> ROBIN MENU MSG
+> REMEMBER MD MENU MSG
 `;
       await robin.sendMessage(
         from,
