@@ -1,4 +1,4 @@
-const { default: makeWASocket, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const fs = require('fs');
 const path = require('path');
 const pino = require('pino');
@@ -8,89 +8,38 @@ const mongoose = require('mongoose');
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// MongoDB Session Schema & Model Define කිරීම
-const AuthSchema = new mongoose.Schema({
+// Dynamic Session Schema for MongoDB
+const SessionSchema = new mongoose.Schema({
     id: { type: String, required: true, unique: true },
-    data: { type: String, required: true }
+    data: { type: Object, required: true }
 });
-const AuthModel = mongoose.models.Auth || mongoose.model('Auth', AuthSchema);
-
-// MongoDB Auth State Handler
-async function useMongoDBAuthState() {
-    const readData = async (id) => {
-        try {
-            const result = await AuthModel.findOne({ id });
-            return result ? JSON.parse(result.data) : null;
-        } catch (e) {
-            return null;
-        }
-    };
-
-    const writeData = async (id, data) => {
-        try {
-            const value = JSON.stringify(data);
-            await AuthModel.findOneAndUpdate({ id }, { data: value }, { upsert: true });
-        } catch (e) {}
-    };
-
-    const removeData = async (id) => {
-        try {
-            await AuthModel.deleteOne({ id });
-        } catch (e) {}
-    };
-
-    const creds = (await readData('creds')) || require('@whiskeysockets/baileys').initAuthCreds();
-
-    return {
-        state: {
-            creds,
-            keys: {
-                get: async (type, ids) => {
-                    const data = {};
-                    await Promise.all(
-                        ids.map(async (id) => {
-                            let value = await readData(`${type}-${id}`);
-                            if (type === 'app-state-sync-key' && value) {
-                                value = require('@whiskeysockets/baileys').proto.Message.AppStateSyncKeyData.fromObject(value);
-                            }
-                            data[id] = value;
-                        })
-                    );
-                    return data;
-                },
-                set: async (data) => {
-                    const tasks = [];
-                    for (const category in data) {
-                        for (const id in data[category]) {
-                            const value = data[category][id];
-                            const key = `${category}-${id}`;
-                            tasks.push(value ? writeData(key, value) : removeData(key));
-                        }
-                    }
-                    await Promise.all(tasks);
-                }
-            }
-        },
-        saveCreds: () => writeData('creds', creds)
-    };
-}
+const Session = mongoose.models.Session || mongoose.model('Session', SessionSchema);
 
 async function startBot() {
     const mongoUri = process.env.MONGODB; 
-    if (!mongoUri) {
-        console.log("❌ MONGODB Variable is missing!");
-        return;
-    }
+    if (!mongoUri) return console.log("❌ MONGODB Variable is missing!");
 
     try {
         await mongoose.connect(mongoUri);
         console.log("✅ Mongoose Connected Successfully!");
     } catch (err) {
-        console.log("❌ DB Error:", err);
-        return;
+        return console.log("❌ DB Error:", err);
     }
 
-    // Plugins load කිරීම
+    // 1. Database එකේ Session Credentials තියෙනවද බලලා Local Session Folder එකට Save කිරීම
+    try {
+        const dbSession = await Session.findOne({ id: 'creds' });
+        if (dbSession && dbSession.data) {
+            const sessionDir = path.join(__dirname, 'session');
+            if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir);
+            fs.writeFileSync(path.join(sessionDir, 'creds.json'), JSON.stringify(dbSession.data));
+            console.log("✅ Loaded Session Credentials from MongoDB!");
+        }
+    } catch (e) {
+        console.log("⚠️ Session Fetch Error:", e.message);
+    }
+
+    // 2. Load Plugins/Commands
     const pluginsDir = path.join(__dirname, 'plugins');
     if (fs.existsSync(pluginsDir)) {
         fs.readdirSync(pluginsDir).forEach((plugin) => {
@@ -100,8 +49,8 @@ async function startBot() {
         });
     }
 
-    // Auth State from MongoDB
-    const { state, saveCreds } = await useMongoDBAuthState();
+    // 3. Auth State Init
+    const { state, saveCreds } = await useMultiFileAuthState('./session');
     const { version } = await fetchLatestBaileysVersion();
 
     const robin = makeWASocket({
@@ -112,13 +61,20 @@ async function startBot() {
         version
     });
 
-    robin.ev.on('creds.update', saveCreds);
+    // Creds Update වෙද්දී DB එකටත් Sync කිරීම
+    robin.ev.on('creds.update', async () => {
+        await saveCreds();
+        try {
+            const credsData = JSON.parse(fs.readFileSync(path.join(__dirname, 'session', 'creds.json')));
+            await Session.findOneAndUpdate({ id: 'creds' }, { data: credsData }, { upsert: true });
+        } catch (e) {}
+    });
 
-    // Connection Status
+    // 4. Connection Status Listener
     robin.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect } = update;
         if (connection === 'connecting') {
-            console.log('🔄 Connecting to WhatsApp via MongoDB Session...');
+            console.log('🔄 Connecting to WhatsApp...');
         } else if (connection === 'close') {
             const shouldReconnect = (lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut;
             if (shouldReconnect) startBot();
@@ -127,7 +83,7 @@ async function startBot() {
         }
     });
 
-    // Message Logic
+    // 5. Message Command Execution
     const events = require('./command');
     robin.ev.on('messages.upsert', async (chatUpdate) => {
         try {
