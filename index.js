@@ -1,26 +1,22 @@
-const { default: makeWASocket, useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
+const { default: makeWASocket, DisconnectReason, fetchLatestBaileysVersion } = require('@whiskeysockets/baileys');
 const fs = require('fs');
 const path = require('path');
 const pino = require('pino');
 const express = require('express');
-const mongoose = require('mongoose'); // මේක අනිවාර්යයි
+const mongoose = require('mongoose');
+const { useMongoDBAuthState } = require('./lib/mongodb'); // DB Auth State Loader
 
 const app = express();
 const PORT = process.env.PORT || 8080;
 
 async function startBot() {
-    // 1. Mongoose Connection එක
     const mongoUri = process.env.MONGODB; 
-    if (!mongoUri) {
-        console.log("❌ MONGODB variable not found in Railway!");
-        return;
-    }
+    if (!mongoUri) return console.log("❌ MONGODB Variable missing!");
+
     await mongoose.connect(mongoUri);
     console.log("✅ Mongoose Connected Successfully!");
 
-    console.log("Connecting ROBIN-MD Bot...");
-    
-    // Load Plugins
+    // Load Commands/Plugins
     const pluginsDir = path.join(__dirname, 'plugins');
     if (fs.existsSync(pluginsDir)) {
         fs.readdirSync(pluginsDir).forEach((plugin) => {
@@ -30,7 +26,8 @@ async function startBot() {
         });
     }
 
-    const { state, saveCreds } = await useMultiFileAuthState('./session');
+    // Auto Session Fetch from MongoDB
+    const { state, saveCreds } = await useMongoDBAuthState(mongoose.connection);
     const { version } = await fetchLatestBaileysVersion();
 
     const robin = makeWASocket({
@@ -53,11 +50,10 @@ async function startBot() {
         }
     });
 
-    // Message Handler
     const events = require('./command');
     robin.ev.on('messages.upsert', async (chatUpdate) => {
         const mek = chatUpdate.messages[0];
-        if (!mek.message) return;
+        if (!mek || !mek.message) return;
         const from = mek.key.remoteJid;
         const body = mek.message.conversation || mek.message.extendedTextMessage?.text || "";
         
@@ -72,7 +68,7 @@ async function startBot() {
     });
 }
 
-app.get('/', (req, res) => res.send('ROBIN-MD Bot is Running!'));
+app.get('/', (req, res) => res.send('ROBIN-MD Bot Running!'));
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 startBot();
