@@ -8,6 +8,6 @@ function convertToBool(text, fault = "true") {
 
 module.exports = {
   SESSION_ID: process.env.SESSION_ID || "Enter your session ID",
-  MONGODB: process.env.MONGODB || "mongodb+srv://gamingkolla788_db_user:aTw7a2D1sg0qX0AA@cluster0.fmw2kqu.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0",
-  OWNER_NUM: process.env.OWNER_NUM || "94752634200",
+  MONGODB: process.env.MONGODB_URL || process.env.MONGODB || "mongodb+srv://gamingkolla788_db_user:QJ7VrzsikZba7QV@cluster0.imw2kqu.mongodb.net/?appName=Cluster0",
+  OWNER_NUM: process.env.OWNER_NUM || "94761576618",
 };
