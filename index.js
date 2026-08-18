@@ -26,14 +26,18 @@ async function startBot() {
         return console.log("❌ DB Error:", err);
     }
 
-    // 1. Database එකේ Session Credentials තියෙනවද බලලා Local Session Folder එකට Save කිරීම
+    // 1. Database එකේ තිබෙන ඕනෑම Session Data එකක් Fetch කිරීම
     try {
-        const dbSession = await Session.findOne({ id: 'creds' });
+        const sessionDir = path.join(__dirname, 'session');
+        if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir);
+
+        const dbSession = await Session.findOne({ $or: [{ id: 'creds' }, { id: 'session' }] });
+        
         if (dbSession && dbSession.data) {
-            const sessionDir = path.join(__dirname, 'session');
-            if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir);
             fs.writeFileSync(path.join(sessionDir, 'creds.json'), JSON.stringify(dbSession.data));
             console.log("✅ Loaded Session Credentials from MongoDB!");
+        } else {
+            console.log("⚠️ No Session Data Found in Database!");
         }
     } catch (e) {
         console.log("⚠️ Session Fetch Error:", e.message);
