@@ -43,9 +43,12 @@ async function startBot() {
 
     robin.ev.on('creds.update', saveCreds);
 
+    // Connection Status Logs
     robin.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect } = update;
-        if (connection === 'close') {
+        if (connection === 'connecting') {
+            console.log('🔄 Connecting to WhatsApp...');
+        } else if (connection === 'close') {
             const shouldReconnect = (lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut;
             if (shouldReconnect) startBot();
         } else if (connection === 'open') {
