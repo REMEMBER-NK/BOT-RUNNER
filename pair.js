@@ -7,10 +7,9 @@ const {
   useMultiFileAuthState,
   delay,
   makeCacheableSignalKeyStore,
-  Browsers,
   jidNormalizedUser,
 } = require("@whiskeysockets/baileys");
-const { Session } = require("./database");
+const mongoose = require("mongoose");
 
 function removeFile(FilePath) {
   if (!fs.existsSync(FilePath)) return false;
@@ -31,10 +30,10 @@ router.get("/", async (req, res) => {
   if (!num) return res.status(400).send({ error: "Phone number is required" });
 
   const id = makeid(5);
-  const sessionPath = `./session_${id}`; // මෙතන spelling හරියට තියෙනවා
+  const sessionPath = `./session_${id}`;
 
   async function RobinPair() {
-    const { state, saveCreds } = await useMultiFileAuthState(sessionPath); // මෙතනත් හරි
+    const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
 
     try {
       let RobinPairWeb = makeWASocket({
@@ -47,7 +46,7 @@ router.get("/", async (req, res) => {
         },
         printQRInTerminal: false,
         logger: pino({ level: "fatal" }).child({ level: "fatal" }),
-        browser: Browsers.macOS("Safari"),
+        browser: ["Ubuntu", "Chrome", "20.0.04"],
       });
 
       if (!RobinPairWeb.authState.creds.registered) {
@@ -68,7 +67,6 @@ router.get("/", async (req, res) => {
           try {
             const user_jid = jidNormalizedUser(RobinPairWeb.user.id);
 
-            // 1. Image එකත් එක්ක යවන Instant Message එක
             await RobinPairWeb.sendMessage(user_jid, {
               image: {
                 url: "https://raw.githubusercontent.com/REMEMBER-NK/Bot-helpur/refs/heads/main/31322071b2dd4757a80b264729c42ee7.png",
@@ -78,24 +76,38 @@ router.get("/", async (req, res) => {
 
             await delay(3000);
 
-            // 2. Read creds.json & Save to MongoDB
+            // Session data read
             const credsData = JSON.parse(fs.readFileSync(`${sessionPath}/creds.json`, "utf-8"));
             
-            await Session.deleteMany({});
-            await Session.create({
-              id: "main_session",
-              sessionData: credsData
-            });
+            // Safe Database Save Logic (BOT-RUNNER එකේ Index.js එකට 100% ගැලපෙන විදිහට)
+            try {
+              const mongoUri = process.env.MONGODB;
+              if (mongoUri) {
+                if (mongoose.connection.readyState !== 1) {
+                  await mongoose.connect(mongoUri);
+                }
+                
+                // PUSH DIRECTLY WITH 'creds' KEY
+                await mongoose.connection.db.collection('sessions').updateOne(
+                  { id: "main_session" },
+                  { $set: { id: "main_session", creds: credsData } },
+                  { upsert: true }
+                );
+                console.log("✅ Auto Verify Data Push to MongoDB Success!");
+              }
+            } catch (dbErr) {
+              console.log("Database Save Warning:", dbErr.message);
+            }
 
-            // 3. Final Confirmation Message
+            // Message Sent
             await RobinPairWeb.sendMessage(user_jid, { 
-              text: "✅ *ඔබගේ Bot සාර්ථකව සකසා නිමා කරන ලදී!*\n\nData MongoDB වෙත Save විය. දැන් Bot ක්‍රියාත්මකයි." 
+              text: "✅ *ඔබගේ Bot සාර්ථකව Auto-Verify විය!*\n\nData MongoDB වෙත Save විය. දැන් Bot Auto Connect වෙයි." 
             });
 
           } catch (e) {
-            console.error("DB Save Error:", e);
+            console.error("Pairing Error:", e);
           } finally {
-            await delay(1000);
+            await delay(2000);
             RobinPairWeb.ws.close();
             removeFile(sessionPath);
           }
