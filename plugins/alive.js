@@ -8,9 +8,12 @@ cmd({
 },
 async (conn, mek, m, { from, reply }) => {
     try {
-        const aliveMsg = `*👋 Hey! ROBIN-MD is Alive & Active Now!*\n\n🤖 *Bot Name:* ROBIN-MD\n⚙️ *Status:* Online & Working\n\n_Type .menu to see all commands._`;
+        const aliveMsg = `*👋 Hey! REMEMBER-MD is Alive & Active Now!*\n\n🤖 *Bot Name:* REMEMBER-MINI-BOT\n⚙️ *Status:* Online & Working\n\n_Type .menu to see all commands._`;
         
-        return await conn.sendMessage(from, { text: aliveMsg }, { quoted: mek });
+        return await conn.sendMessage(from, {
+            image: { url: "https://raw.githubusercontent.com/REMEMBER-NK/Bot-helpur/refs/heads/main/31322071b2dd4757a80b264729c42ee7.png" },
+            caption: aliveMsg
+        }, { quoted: mek });
 
     } catch (e) {
         console.log("Alive Command Error:", e);
