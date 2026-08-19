@@ -8,53 +8,26 @@ const mongoose = require('mongoose');
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-async function startBot() {
-    const mongoUri = process.env.MONGODB; 
-    if (!mongoUri) return console.log("❌ MONGODB Variable is missing in Railway!");
+// 1. Plugins ටික එකපාර මුලින්ම Load කිරීම
+const events = require('./command');
+const pluginsDir = path.join(__dirname, 'plugins');
+if (fs.existsSync(pluginsDir)) {
+    fs.readdirSync(pluginsDir).forEach((plugin) => {
+        if (path.extname(plugin).toLowerCase() === '.js') {
+            require(path.join(pluginsDir, plugin));
+        }
+    });
+}
 
-    try {
-        await mongoose.connect(mongoUri);
-        console.log("✅ Mongoose Connected Successfully!");
-    } catch (err) {
-        return console.log("❌ DB Connection Error:", err);
-    }
-
-    const sessionDir = path.join(__dirname, 'session');
+// 2. එක එක Session එකට වෙන වෙනම Bot Instance එකක් Start කරන Function එක
+async function startSingleBotInstance(sessionId, sessionData, version) {
+    const sessionDir = path.join(__dirname, 'sessions', sessionId);
     if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
 
-    async function loadSessionFromDB() {
-        try {
-            const collections = await mongoose.connection.db.listCollections().toArray();
-            for (let col of collections) {
-                const docs = await mongoose.connection.db.collection(col.name).find({}).toArray();
-                for (let doc of docs) {
-                    if (doc.creds || doc.sessionData) {
-                        const sessionData = doc.creds || doc.sessionData;
-                        fs.writeFileSync(path.join(sessionDir, 'creds.json'), JSON.stringify(sessionData, null, 2));
-                        console.log(`✅ Loaded Auto-Verified Session from Database!`);
-                        return true;
-                    }
-                }
-            }
-        } catch (e) {
-            console.log("⚠️ Error fetching session from DB:", e.message);
-        }
-        return false;
-    }
+    // Session Data එක adාල Folder එක ඇතුළේ creds.json එකට ලියයි
+    fs.writeFileSync(path.join(sessionDir, 'creds.json'), JSON.stringify(sessionData, null, 2));
 
-    await loadSessionFromDB();
-
-    const pluginsDir = path.join(__dirname, 'plugins');
-    if (fs.existsSync(pluginsDir)) {
-        fs.readdirSync(pluginsDir).forEach((plugin) => {
-            if (path.extname(plugin).toLowerCase() === '.js') {
-                require(path.join(pluginsDir, plugin));
-            }
-        });
-    }
-
-    const { state, saveCreds } = await useMultiFileAuthState('./session');
-    const { version } = await fetchLatestBaileysVersion();
+    const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
 
     const rememberBot = makeWASocket({
         logger: pino({ level: 'silent' }),
@@ -71,26 +44,26 @@ async function startBot() {
         const { connection, lastDisconnect } = update;
         
         if (connection === 'connecting') {
-            console.log('🔄 Connecting to WhatsApp...');
+            console.log(`🔄 Connecting to WhatsApp [Session: ${sessionId}]...`);
         } else if (connection === 'close') {
             const statusCode = (lastDisconnect?.error)?.output?.statusCode;
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
             
-            console.log(`Connection closed. Reason: ${statusCode}. Reconnecting: ${shouldReconnect}`);
+            console.log(`[Session: ${sessionId}] Connection closed. Reason: ${statusCode}. Reconnecting: ${shouldReconnect}`);
 
             if (statusCode === DisconnectReason.loggedOut) {
-                console.log("❌ Session Logged Out from WhatsApp. Cleaning directory...");
+                console.log(`❌ Session Logged Out [${sessionId}]. Cleaning...`);
                 if (fs.existsSync(sessionDir)) fs.rmSync(sessionDir, { recursive: true, force: true });
-                await mongoose.connection.db.collection('sessions').deleteMany({});
+                await mongoose.connection.db.collection('sessions').deleteOne({ id: sessionId });
             } else if (shouldReconnect) {
-                setTimeout(startBot, 3000);
+                setTimeout(() => startSingleBotInstance(sessionId, sessionData, version), 3000);
             }
         } else if (connection === 'open') {
-            console.log('✅ REMEMBER-MD Connected Successfully!');
+            console.log(`✅ REMEMBER-MD Connected Successfully for [${sessionId}]!`);
         }
     });
 
-    const events = require('./command');
+    // Message / Command Handler එක dynamic ව ප්‍රත්‍යක්ෂ වේ
     rememberBot.ev.on('messages.upsert', async (chatUpdate) => {
         try {
             const mek = chatUpdate.messages[0];
@@ -108,12 +81,50 @@ async function startBot() {
                 }
             }
         } catch (e) {
-            console.log("Message Handler Error:", e);
+            console.log(`Message Handler Error [${sessionId}]:`, e);
         }
     });
 }
 
-app.get('/', (req, res) => res.send('REMEMBER-MD Bot Running!'));
+// 3. Main Master Launcher (Database එකේ තියෙන සියලුම Sessions Load කරයි)
+async function startAllBots() {
+    const mongoUri = process.env.MONGODB; 
+    if (!mongoUri) return console.log("❌ MONGODB Variable is missing in Railway!");
+
+    try {
+        await mongoose.connect(mongoUri);
+        console.log("✅ Mongoose Connected Successfully!");
+    } catch (err) {
+        return console.log("❌ DB Connection Error:", err);
+    }
+
+    try {
+        const { version } = await fetchLatestBaileysVersion();
+        
+        // sessions collection එකේ තියෙන සියලුම active documents ලබා ගැනීම
+        const docs = await mongoose.connection.db.collection('sessions').find({}).toArray();
+
+        if (!docs || docs.length === 0) {
+            console.log("⚠️ Database එකේ සක්‍රීය Sessions කිසිවක් හමු නොවීය!");
+            return;
+        }
+
+        console.log(`🚀 Found ${docs.length} active session(s). Starting Bots...`);
+
+        // Loop එකක් මගින් එක එක session එකට වෙන වෙනම bot run කිරීම
+        for (let doc of docs) {
+            const sessionId = doc.id || `session_${doc._id}`;
+            const sessionData = doc.creds || doc.sessionData;
+            if (sessionData) {
+                await startSingleBotInstance(sessionId, sessionData, version);
+            }
+        }
+    } catch (e) {
+        console.log("⚠️ Error loading sessions from DB:", e.message);
+    }
+}
+
+app.get('/', (req, res) => res.send('REMEMBER-MD Multi-Bot Runner Active!'));
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
-startBot();
+startAllBots();
