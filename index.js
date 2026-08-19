@@ -8,6 +8,10 @@ const mongoose = require('mongoose');
 const app = express();
 const PORT = process.env.PORT || 8080;
 
+// දැනට Active වෙලා run වෙන Sessions ටික මතක තියාගන්න Set එකක්
+const activeRunningSessions = new Set();
+let cachedVersion = null;
+
 // 1. Plugins ටික එකපාර මුලින්ම Load කිරීම
 const events = require('./command');
 const pluginsDir = path.join(__dirname, 'plugins');
@@ -53,6 +57,7 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
 
             if (statusCode === DisconnectReason.loggedOut) {
                 console.log(`❌ Session Logged Out [${sessionId}]. Cleaning...`);
+                activeRunningSessions.delete(sessionId);
                 if (fs.existsSync(sessionDir)) fs.rmSync(sessionDir, { recursive: true, force: true });
                 await mongoose.connection.db.collection('sessions').deleteOne({ id: sessionId });
             } else if (shouldReconnect) {
@@ -63,7 +68,7 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
         }
     });
 
-    // Message / Command Handler එක dynamic ව ප්‍රත්‍යක්ෂ වේ
+    // Message / Command Handler
     rememberBot.ev.on('messages.upsert', async (chatUpdate) => {
         try {
             const mek = chatUpdate.messages[0];
@@ -86,7 +91,35 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
     });
 }
 
-// 3. Main Master Launcher (Database එකේ තියෙන සියලුම Sessions Load කරයි)
+// 3. Dynamic Session Checker (අලුත් Sessions auto අඳුනා ගනී)
+async function checkForNewSessions() {
+    try {
+        if (mongoose.connection.readyState !== 1) return;
+
+        if (!cachedVersion) {
+            const { version } = await fetchLatestBaileysVersion();
+            cachedVersion = version;
+        }
+
+        const docs = await mongoose.connection.db.collection('sessions').find({}).toArray();
+
+        for (let doc of docs) {
+            const sessionId = doc.id || `session_${doc._id}`;
+            const sessionData = doc.creds || doc.sessionData;
+
+            // දැනට Run වෙන්නේ නැති අලුත් Session එකක් ආවොත් විතරක් Auto Start කරයි
+            if (sessionData && !activeRunningSessions.has(sessionId)) {
+                console.log(`🚀 New Session Detected: [${sessionId}]. Auto-Starting Bot...`);
+                activeRunningSessions.add(sessionId);
+                await startSingleBotInstance(sessionId, sessionData, cachedVersion);
+            }
+        }
+    } catch (e) {
+        console.log("⚠️ Error checking sessions from DB:", e.message);
+    }
+}
+
+// 4. Main Master Launcher
 async function startAllBots() {
     const mongoUri = process.env.MONGODB; 
     if (!mongoUri) return console.log("❌ MONGODB Variable is missing in Railway!");
@@ -94,33 +127,17 @@ async function startAllBots() {
     try {
         await mongoose.connect(mongoUri);
         console.log("✅ Mongoose Connected Successfully!");
+        
+        // පළමු පාර Run කිරීම
+        await checkForNewSessions();
+
+        // 🔄 සෑම තත්පර 15කට වරක්ම DB එක Auto Check කරයි (Redeploy අවශ්‍ය නැත!)
+        setInterval(() => {
+            checkForNewSessions();
+        }, 15000);
+
     } catch (err) {
         return console.log("❌ DB Connection Error:", err);
-    }
-
-    try {
-        const { version } = await fetchLatestBaileysVersion();
-        
-        // sessions collection එකේ තියෙන සියලුම active documents ලබා ගැනීම
-        const docs = await mongoose.connection.db.collection('sessions').find({}).toArray();
-
-        if (!docs || docs.length === 0) {
-            console.log("⚠️ Database එකේ සක්‍රීය Sessions කිසිවක් හමු නොවීය!");
-            return;
-        }
-
-        console.log(`🚀 Found ${docs.length} active session(s). Starting Bots...`);
-
-        // Loop එකක් මගින් එක එක session එකට වෙන වෙනම bot run කිරීම
-        for (let doc of docs) {
-            const sessionId = doc.id || `session_${doc._id}`;
-            const sessionData = doc.creds || doc.sessionData;
-            if (sessionData) {
-                await startSingleBotInstance(sessionId, sessionData, version);
-            }
-        }
-    } catch (e) {
-        console.log("⚠️ Error loading sessions from DB:", e.message);
     }
 }
 
