@@ -9,6 +9,12 @@ cmd({
 },
 async (conn, mek, m, { from }) => {
     try {
+        // 1. Message එකට Auto React කරන කොටස
+        await conn.sendMessage(from, { 
+            react: { text: "❤️‍🔥", key: mek.key } 
+        });
+
+        // 2. Alive Message එක යවන කොටස
         const aliveMsg = `*Hey! I'm ᏒᏋᎷᏋᎷᏰᏋᏒ ᎷᎴ*\n\n*💖 Here For You!*\n\n*version:* 1.0.0 Online*\n\n*contact owner*\n\n+94761576618 \n\n THANK YOU 🙉`;
         
         return await conn.sendMessage(from, {
