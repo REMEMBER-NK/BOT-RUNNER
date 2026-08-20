@@ -68,7 +68,7 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
         }
     });
 
-    // Message / Command Handler
+    // Message / Command Handler (Fixed with q & args)
     rememberBot.ev.on('messages.upsert', async (chatUpdate) => {
         try {
             const mek = chatUpdate.messages[0];
@@ -78,11 +78,28 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
             const body = mek.message.conversation || mek.message.extendedTextMessage?.text || "";
 
             if (body.startsWith('.')) {
+                // Command එක සහ Arguments/Query කඩලා ගන්නවා
+                const args = body.trim().split(/ +/).slice(1);
                 const commandName = body.slice(1).split(" ")[0].toLowerCase();
-                const cmd = events.commands.find((c) => c.pattern === commandName);
+                const q = args.join(" ");
+
+                // Pattern එකෙන් හෝ Alias එකෙන් Command එක හොයාගන්නවා
+                const cmd = events.commands.find((c) => 
+                    c.pattern === commandName || (c.alias && c.alias.includes(commandName))
+                );
+
                 if (cmd) {
                     const reply = (text) => rememberBot.sendMessage(from, { text }, { quoted: mek });
-                    cmd.function(rememberBot, mek, mek, { from, reply, body });
+                    cmd.function(rememberBot, mek, mek, { 
+                        from, 
+                        reply, 
+                        body, 
+                        args, 
+                        q, 
+                        quoted: mek,
+                        isCmd: true,
+                        command: commandName
+                    });
                 }
             }
         } catch (e) {
