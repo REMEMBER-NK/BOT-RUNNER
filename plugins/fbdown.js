@@ -1,6 +1,5 @@
 const { cmd, commands } = require("../command");
-const getFbVideoInfo = require("fb-downloader-scrapper");
-
+const getFbVideoInfo = require("@renpwn/fb-downloader");
 cmd(
   {
     pattern: "fb",
