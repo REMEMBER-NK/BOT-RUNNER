@@ -28,7 +28,7 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
     const sessionDir = path.join(__dirname, 'sessions', sessionId);
     if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
 
-    // Session Data එක adාල Folder එක ඇතුළේ creds.json එකට ලියයි
+    // Session Data එක අදාළ Folder එක ඇතුළේ creds.json එකට ලියයි
     fs.writeFileSync(path.join(sessionDir, 'creds.json'), JSON.stringify(sessionData, null, 2));
 
     const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
@@ -68,7 +68,7 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
         }
     });
 
-    // Message / Command Handler (Fixed with q & args)
+    // Message / Command Handler (Fixed with pushname, q & args)
     rememberBot.ev.on('messages.upsert', async (chatUpdate) => {
         try {
             const mek = chatUpdate.messages[0];
@@ -76,6 +76,7 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
 
             const from = mek.key.remoteJid;
             const body = mek.message.conversation || mek.message.extendedTextMessage?.text || "";
+            const pushname = mek.pushName || "User"; // 👈 User Name එක මෙතනින් ගන්නවා
 
             if (body.startsWith('.')) {
                 // Command එක සහ Arguments/Query කඩලා ගන්නවා
@@ -96,6 +97,7 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
                         body, 
                         args, 
                         q, 
+                        pushname, // 👈 Plugins වලට pass කළා
                         quoted: mek,
                         isCmd: true,
                         command: commandName
@@ -148,7 +150,7 @@ async function startAllBots() {
         // පළමු පාර Run කිරීම
         await checkForNewSessions();
 
-        // 🔄 සෑම තත්පර 15කට වරක්ම DB එක Auto Check කරයි (Redeploy අවශ්‍ය නැත!)
+        // 🔄 සෑම තත්පර 15කට වරක්ම DB එක Auto Check කරයි
         setInterval(() => {
             checkForNewSessions();
         }, 15000);
