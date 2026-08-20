@@ -5,7 +5,7 @@ cmd(
   {
     pattern: "fb",
     alias: ["facebook"],
-    react: "💀",
+    react: "☑️",
     desc: "Download Facebook Video",
     category: "download",
     filename: __filename,
@@ -60,7 +60,7 @@ cmd(
 
       // Prepare and send the message with video details
       let desc = `
-*❤️ ROBIN FB VIDEO DOWNLOADER ❤️*
+*❤️ REMEMBER MD FB VIDEO DOWNLOADER ❤️*
 
 👻 *Title*: ${title || "Unknown"}
 👻 *Quality*: ${hd ? "HD Available" : "SD Only"}
@@ -71,7 +71,7 @@ cmd(
         from,
         {
           image: {
-            url: "https://raw.githubusercontent.com/Dark-Robin/Bot-Helper/refs/heads/main/autoimage/Bot%20fb-1.jpg",
+            url: "https://raw.githubusercontent.com/REMEMBER-NK/Bot-helpur/refs/heads/main/31322071b2dd4757a80b264729c42ee7.png",
           },
           caption: desc,
         },
@@ -99,7 +99,7 @@ cmd(
         return reply("*No downloadable video found!* 🌚");
       }
 
-      return reply("*Thanks for using my bot* 🌚❤️");
+      return reply("*TTHANKS FOR USING REMEMBER MD* 🌚❤️");
     } catch (e) {
       console.error(e);
       reply(`*Error:* ${e.message || e}`);
