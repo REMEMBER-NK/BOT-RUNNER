@@ -4,8 +4,8 @@ const { cmd, commands } = require("../command");
 cmd(
   {
     pattern: "menu",
-    alise: ["getmenu"],
-    react:"🙈",
+    alias: ["getmenu"], // 👈 'alise' එක 'alias' කියලා නිවැරදි කළා
+    react: "🙈",
     desc: "get cmd list",
     category: "main",
     filename: __filename,
@@ -40,6 +40,11 @@ cmd(
     }
   ) => {
     try {
+      // 1. Message එකට Auto React (🙈) කරන කොටස
+      await robin.sendMessage(from, { 
+        react: { text: "🙈", key: mek.key } 
+      });
+
       const config = await readEnv();
       let menu = {
         main: "",
