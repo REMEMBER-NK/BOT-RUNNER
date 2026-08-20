@@ -17,6 +17,11 @@ cmd(
     { from, body, args, q, reply }
   ) => {
     try {
+      // 1. Message එකට Auto React (☑️) කරන කොටස
+      await robin.sendMessage(from, { 
+        react: { text: "☑️", key: mek.key } 
+      });
+
       // q එක නැත්නම් body එකෙන් link එක කඩලා ගන්නවා
       let text = q || args.join(" ") || body.slice(3).trim();
 
