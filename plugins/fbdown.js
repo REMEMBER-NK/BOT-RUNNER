@@ -1,5 +1,6 @@
 const { cmd, commands } = require("../command");
 const getFbVideoInfo = require("@renpwn/fb-downloader");
+
 cmd(
   {
     pattern: "fb",
@@ -41,15 +42,19 @@ cmd(
     try {
       if (!q) return reply("*Please provide a valid Facebook video URL!* 🌚❤️");
 
-      // Validate the Facebook URL format
-      const fbRegex = /(https?:\/\/)?(www\.)?(facebook|fb)\.com\/.+/;
-      if (!fbRegex.test(q))
+      // 1. Link එක දෙපැත්තේ තියෙන < > සලකුණු සහ extra spaces අයින් කිරීම
+      const cleanUrl = q.replace(/[<>]/g, "").trim();
+
+      // 2. Facebook, Reels, Watch, Mobile (m.fb) ඕනම එකක් අල්ලන Regex එක
+      const fbRegex = /(facebook\.com|fb\.watch|fb\.gg)/i;
+      
+      if (!fbRegex.test(cleanUrl))
         return reply("*Invalid Facebook URL! Please check and try again.* 🌚");
 
       // Fetch video details
       reply("*Downloading your video...* 🌚❤️");
 
-      const result = await getFbVideoInfo(q);
+      const result = await getFbVideoInfo(cleanUrl);
 
       if (!result || (!result.sd && !result.hd)) {
         return reply("*Failed to download video. Please try again later.* 🌚");
@@ -76,16 +81,12 @@ cmd(
         },
         { quoted: mek }
       );
+
       // Send the video if available
       if (hd) {
         await robin.sendMessage(
           from,
           { video: { url: hd }, caption: "----------HD VIDEO----------" },
-          { quoted: mek }
-        );
-        await robin.sendMessage(
-          from,
-          { video: { url: sd }, caption: "----------SD VIDEO----------" },
           { quoted: mek }
         );
       } else if (sd) {
@@ -98,7 +99,7 @@ cmd(
         return reply("*No downloadable video found!* 🌚");
       }
 
-      return reply("*TTHANKS FOR USING REMEMBER MD* 🌚❤️");
+      return reply("*THANKS FOR USING REMEMBER MD* 🌚❤️");
     } catch (e) {
       console.error(e);
       reply(`*Error:* ${e.message || e}`);
