@@ -14,44 +14,22 @@ cmd(
     robin,
     mek,
     m,
-    {
-      from,
-      quoted,
-      body,
-      isCmd,
-      command,
-      args,
-      q,
-      isGroup,
-      sender,
-      senderNumber,
-      botNumber2,
-      botNumber,
-      pushname,
-      isMe,
-      isOwner,
-      groupMetadata,
-      groupName,
-      participants,
-      groupAdmins,
-      isBotAdmins,
-      isAdmins,
-      reply,
-    }
+    { from, body, args, q, reply }
   ) => {
     try {
-      if (!q) return reply("*Please provide a valid Facebook video URL!* 🌚❤️");
+      // q එක නැත්නම් body එකෙන් link එක කඩලා ගන්නවා
+      let text = q || args.join(" ") || body.slice(3).trim();
 
-      // 1. Link එක දෙපැත්තේ තියෙන < > සලකුණු සහ extra spaces අයින් කිරීම
-      const cleanUrl = q.replace(/[<>]/g, "").trim();
+      if (!text) return reply("*Please provide a valid Facebook video URL!* 🌚❤️");
 
-      // 2. Facebook, Reels, Watch, Mobile (m.fb) ඕනම එකක් අල්ලන Regex එක
+      // < > සලකුණු අයින් කර Link එක Clean කරගැනීම
+      const cleanUrl = text.replace(/[<>]/g, "").trim();
+
       const fbRegex = /(facebook\.com|fb\.watch|fb\.gg)/i;
       
       if (!fbRegex.test(cleanUrl))
         return reply("*Invalid Facebook URL! Please check and try again.* 🌚");
 
-      // Fetch video details
       reply("*Downloading your video...* 🌚❤️");
 
       const result = await getFbVideoInfo(cleanUrl);
@@ -62,7 +40,6 @@ cmd(
 
       const { title, sd, hd } = result;
 
-      // Prepare and send the message with video details
       let desc = `
 *❤️ REMEMBER MD FB VIDEO DOWNLOADER ❤️*
 
@@ -71,6 +48,7 @@ cmd(
 
 𝐌𝐚𝐝𝐞 𝐛𝐲 𝐒_𝐈_𝐇_𝐈_𝐋_𝐄_𝐋
         `;
+
       await robin.sendMessage(
         from,
         {
@@ -82,7 +60,6 @@ cmd(
         { quoted: mek }
       );
 
-      // Send the video if available
       if (hd) {
         await robin.sendMessage(
           from,
