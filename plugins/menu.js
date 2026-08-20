@@ -4,7 +4,7 @@ const { cmd, commands } = require("../command");
 cmd(
   {
     pattern: "menu",
-    alias: ["getmenu"], // 👈 'alise' එක 'alias' කියලා නිවැරදි කළා
+    alias: ["getmenu"],
     react: "🙈",
     desc: "get cmd list",
     category: "main",
@@ -63,7 +63,10 @@ cmd(
         }
       }
 
-      let madeMenu = `👋 *Hello  ${pushname}*
+      // 2. pushname නැත්නම් "User" කියලා වැටෙන්න හදමු
+      const userName = pushname || "User";
+
+      let madeMenu = `👋 *Hello ${userName}*
 
 
 | *MAIN COMMANDS* |
