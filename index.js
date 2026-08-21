@@ -9,6 +9,7 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 const activeRunningSessions = new Set();
+const processedMessages = new Set(); // Duplicate Messages Block කරන Cache එක
 let cachedVersion = null;
 
 // 1. Plugins Load කිරීම
@@ -73,6 +74,12 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
         try {
             const mek = chatUpdate.messages[0];
             if (!mek || !mek.message) return;
+
+            // Duplicate Message Check (එකම Message එක දෙපාරක් Process වෙන එක නතර කිරීම)
+            const msgId = mek.key.id;
+            if (processedMessages.has(msgId)) return;
+            processedMessages.add(msgId);
+            setTimeout(() => processedMessages.delete(msgId), 60000); // විනාඩියකින් Memory එකෙන් අයින් කිරීම
 
             const from = mek.key.remoteJid;
             const type = Object.keys(mek.message)[0];
