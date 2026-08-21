@@ -40,14 +40,20 @@ cmd(
     }
   ) => {
     try {
+      // 1. Reaction එක Auto යැවීම
+      await robin.sendMessage(from, {
+        react: { text: "📽️", key: mek.key }
+      });
+
       if (!q) return reply("*GIVE NAME OR LINK!* 🌚❤️");
 
       // Search for the video
       const search = await yts(q);
+      if (!search || !search.videos.length) return reply("❌ Video not found!");
       const data = search.videos[0];
       const url = data.url;
 
-      // Song metadata description
+      // Video metadata description
       let desc = `
 *❤️REMEMBER VIDEO DOWNLOADER❤️*
 
@@ -68,11 +74,7 @@ cmd(
         { quoted: mek }
       );
 
-      // Download the audio using @vreden/youtube_scraper
-      const quality = "128"; // Default quality
-      const songData = await ytmp4(url, quality);
-
-      // Validate song duration (limit: 30 minutes)
+      // Validate video duration (limit: 30 minutes)
       let durationParts = data.timestamp.split(":").map(Number);
       let totalSeconds =
         durationParts.length === 3
@@ -80,15 +82,24 @@ cmd(
           : durationParts[0] * 60 + durationParts[1];
 
       if (totalSeconds > 1800) {
-        return reply("⏱️ audio limit is 30 minitues");
+        return reply("⏱️ Video limit is 30 minutes");
       }
 
-      // Send audio file
+      // Download the video using @vreden/youtube_scraper
+      const quality = "360"; // Video Quality (360p or 720p)
+      const videoData = await ytmp4(url, quality);
+
+      if (!videoData || !videoData.download || !videoData.download.url) {
+        return reply("❌ Video download link generation failed!");
+      }
+
+      // Send video file (Corrected from audio to video)
       await robin.sendMessage(
         from,
         {
-          audio: { url: songData.download.url },
+          video: { url: videoData.download.url },
           mimetype: "video/mp4",
+          caption: `${data.title}\n\n𝙼𝙰𝙳𝙴 𝙱𝚈 𝚁𝙴𝙼𝙴𝙼𝙱𝙴𝚁`
         },
         { quoted: mek }
       );
@@ -97,13 +108,18 @@ cmd(
       await robin.sendMessage(
         from,
         {
-          document: { url: songData.download.url },
+          document: { url: videoData.download.url },
           mimetype: "video/mp4",
           fileName: `${data.title}.mp4`,
           caption: "𝙼𝙰𝙳𝙴 𝙱𝚈 𝚁𝙴𝙼𝙴𝙼𝙱𝙴𝚁",
         },
         { quoted: mek }
       );
+
+      // Done reaction
+      await robin.sendMessage(from, {
+        react: { text: "✅", key: mek.key }
+      });
 
       return reply("*Thanks for using my bot* 🌚❤️");
     } catch (e) {
