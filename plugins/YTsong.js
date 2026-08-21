@@ -40,10 +40,16 @@ cmd(
     }
   ) => {
     try {
+      // 1. Reaction එක auto යැවීම
+      await robin.sendMessage(from, {
+        react: { text: "🎵", key: mek.key }
+      });
+
       if (!q) return reply("*GIVE NAME OR LINK!* 🌚❤️");
 
       // Search for the video
       const search = await yts(q);
+      if (!search || !search.videos.length) return reply("❌ Song not found!");
       const data = search.videos[0];
       const url = data.url;
 
@@ -68,10 +74,6 @@ cmd(
         { quoted: mek }
       );
 
-      // Download the audio using @vreden/youtube_scraper
-      const quality = "128"; // Default quality
-      const songData = await ytmp3(url, quality);
-
       // Validate song duration (limit: 30 minutes)
       let durationParts = data.timestamp.split(":").map(Number);
       let totalSeconds =
@@ -80,7 +82,15 @@ cmd(
           : durationParts[0] * 60 + durationParts[1];
 
       if (totalSeconds > 1800) {
-        return reply("⏱️ audio limit is 30 minitues");
+        return reply("⏱️ audio limit is 30 minutes");
+      }
+
+      // Download the audio using @vreden/youtube_scraper
+      const quality = "128";
+      const songData = await ytmp3(url, quality);
+
+      if (!songData || !songData.download || !songData.download.url) {
+        return reply("❌ Download link generation failed!");
       }
 
       // Send audio file
@@ -93,7 +103,7 @@ cmd(
         { quoted: mek }
       );
 
-      // Send as a document (optional)
+      // Send as a document
       await robin.sendMessage(
         from,
         {
@@ -104,6 +114,11 @@ cmd(
         },
         { quoted: mek }
       );
+
+      // Done reaction (optional)
+      await robin.sendMessage(from, {
+        react: { text: "✅", key: mek.key }
+      });
 
       return reply("*Thanks for using my bot* 🌚❤️");
     } catch (e) {
