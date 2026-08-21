@@ -17,7 +17,11 @@ const pluginsDir = path.join(__dirname, 'plugins');
 if (fs.existsSync(pluginsDir)) {
     fs.readdirSync(pluginsDir).forEach((plugin) => {
         if (path.extname(plugin).toLowerCase() === '.js') {
-            require(path.join(pluginsDir, plugin));
+            try {
+                require(path.join(pluginsDir, plugin));
+            } catch (err) {
+                console.log(`❌ Plugin Load Error [${plugin}]:`, err.message);
+            }
         }
     });
 }
@@ -50,8 +54,6 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
         } else if (connection === 'close') {
             const statusCode = (lastDisconnect?.error)?.output?.statusCode;
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-            
-            console.log(`[Session: ${sessionId}] Connection closed. Reason: ${statusCode}. Reconnecting: ${shouldReconnect}`);
 
             if (statusCode === DisconnectReason.loggedOut) {
                 console.log(`❌ Session Logged Out [${sessionId}]. Cleaning...`);
@@ -66,15 +68,13 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
         }
     });
 
-    // Message / Command Handler
+    // Command Handler
     rememberBot.ev.on('messages.upsert', async (chatUpdate) => {
         try {
             const mek = chatUpdate.messages[0];
             if (!mek || !mek.message) return;
 
             const from = mek.key.remoteJid;
-            
-            // Message Body එක ගන්නා ක්‍රමය
             const type = Object.keys(mek.message)[0];
             const msg = type === 'viewOnceMessage' ? mek.message.viewOnceMessage.message : mek.message;
             
@@ -84,8 +84,6 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
                          msg.videoMessage?.caption || '';
 
             const pushname = mek.pushName || "User";
-
-            console.log(`[${sessionId}] Received Message: "${body}" from ${pushname}`);
 
             if (body.startsWith('.')) {
                 const args = body.trim().split(/ +/).slice(1);
