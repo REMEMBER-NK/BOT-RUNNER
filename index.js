@@ -66,18 +66,15 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
         }
     });
 
-    // Message / Command Handler (Fixed Message Reading)
+    // Message / Command Handler
     rememberBot.ev.on('messages.upsert', async (chatUpdate) => {
         try {
             const mek = chatUpdate.messages[0];
             if (!mek || !mek.message) return;
 
-            // Bot තමන් විසින්ම යවන messages skip කිරීම
-            if (mek.key.fromMe) return;
-
             const from = mek.key.remoteJid;
             
-            // Message Body එක නිවැරදිව ගන්නා ක්‍රමය (Ephemeral, Image/Video Captions ඇතුළුව)
+            // Message Body එක ගන්නා ක්‍රමය
             const type = Object.keys(mek.message)[0];
             const msg = type === 'viewOnceMessage' ? mek.message.viewOnceMessage.message : mek.message;
             
