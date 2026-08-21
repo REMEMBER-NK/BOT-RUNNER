@@ -8,11 +8,10 @@ const mongoose = require('mongoose');
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// දැනට Active වෙලා run වෙන Sessions ටික මතක තියාගන්න Set එකක්
 const activeRunningSessions = new Set();
 let cachedVersion = null;
 
-// 1. Plugins ටික එකපාර මුලින්ම Load කිරීම
+// 1. Plugins Load කිරීම
 const events = require('./command');
 const pluginsDir = path.join(__dirname, 'plugins');
 if (fs.existsSync(pluginsDir)) {
@@ -23,12 +22,11 @@ if (fs.existsSync(pluginsDir)) {
     });
 }
 
-// 2. එක එක Session එකට වෙන වෙනම Bot Instance එකක් Start කරන Function එක
+// 2. Single Bot Instance Starter
 async function startSingleBotInstance(sessionId, sessionData, version) {
     const sessionDir = path.join(__dirname, 'sessions', sessionId);
     if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
 
-    // Session Data එක අදාළ Folder එක ඇතුළේ creds.json එකට ලියයි
     fs.writeFileSync(path.join(sessionDir, 'creds.json'), JSON.stringify(sessionData, null, 2));
 
     const { state, saveCreds } = await useMultiFileAuthState(sessionDir);
@@ -68,23 +66,35 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
         }
     });
 
-    // Message / Command Handler (Fixed with pushname, q & args)
+    // Message / Command Handler (Fixed Message Reading)
     rememberBot.ev.on('messages.upsert', async (chatUpdate) => {
         try {
             const mek = chatUpdate.messages[0];
             if (!mek || !mek.message) return;
 
+            // Bot තමන් විසින්ම යවන messages skip කිරීම
+            if (mek.key.fromMe) return;
+
             const from = mek.key.remoteJid;
-            const body = mek.message.conversation || mek.message.extendedTextMessage?.text || "";
-            const pushname = mek.pushName || "User"; // 👈 User Name එක මෙතනින් ගන්නවා
+            
+            // Message Body එක නිවැරදිව ගන්නා ක්‍රමය (Ephemeral, Image/Video Captions ඇතුළුව)
+            const type = Object.keys(mek.message)[0];
+            const msg = type === 'viewOnceMessage' ? mek.message.viewOnceMessage.message : mek.message;
+            
+            const body = msg.conversation || 
+                         msg.extendedTextMessage?.text || 
+                         msg.imageMessage?.caption || 
+                         msg.videoMessage?.caption || '';
+
+            const pushname = mek.pushName || "User";
+
+            console.log(`[${sessionId}] Received Message: "${body}" from ${pushname}`);
 
             if (body.startsWith('.')) {
-                // Command එක සහ Arguments/Query කඩලා ගන්නවා
                 const args = body.trim().split(/ +/).slice(1);
                 const commandName = body.slice(1).split(" ")[0].toLowerCase();
                 const q = args.join(" ");
 
-                // Pattern එකෙන් හෝ Alias එකෙන් Command එක හොයාගන්නවා
                 const cmd = events.commands.find((c) => 
                     c.pattern === commandName || (c.alias && c.alias.includes(commandName))
                 );
@@ -97,7 +107,7 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
                         body, 
                         args, 
                         q, 
-                        pushname, // 👈 Plugins වලට pass කළා
+                        pushname, 
                         quoted: mek,
                         isCmd: true,
                         command: commandName
@@ -110,7 +120,7 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
     });
 }
 
-// 3. Dynamic Session Checker (අලුත් Sessions auto අඳුනා ගනී)
+// 3. Dynamic Session Checker
 async function checkForNewSessions() {
     try {
         if (mongoose.connection.readyState !== 1) return;
@@ -126,7 +136,6 @@ async function checkForNewSessions() {
             const sessionId = doc.id || `session_${doc._id}`;
             const sessionData = doc.creds || doc.sessionData;
 
-            // දැනට Run වෙන්නේ නැති අලුත් Session එකක් ආවොත් විතරක් Auto Start කරයි
             if (sessionData && !activeRunningSessions.has(sessionId)) {
                 console.log(`🚀 New Session Detected: [${sessionId}]. Auto-Starting Bot...`);
                 activeRunningSessions.add(sessionId);
@@ -147,10 +156,8 @@ async function startAllBots() {
         await mongoose.connect(mongoUri);
         console.log("✅ Mongoose Connected Successfully!");
         
-        // පළමු පාර Run කිරීම
         await checkForNewSessions();
 
-        // 🔄 සෑම තත්පර 15කට වරක්ම DB එක Auto Check කරයි
         setInterval(() => {
             checkForNewSessions();
         }, 15000);
