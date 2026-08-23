@@ -72,7 +72,7 @@ cmd(
   }
 );
 
-// 3. HENTAI IMAGE
+// 3. HENTAI IMAGE (Multi-API Auto Fallback System)
 cmd(
   {
     pattern: "hentai",
@@ -82,50 +82,39 @@ cmd(
     filename: __filename
   },
   async (remember, mek, m, { from, reply }) => {
+    let imgUrl = null;
+
+    // API 1: Waifu.pics
     try {
-      const res = await axios.get("https://api.waifu.pics/nsfw/waifu", { timeout: 8000 });
-      if (!res.data || !res.data.url) return reply("❌ API fetch failed.");
+      const res1 = await axios.get("https://api.waifu.pics/nsfw/waifu", { timeout: 5000 });
+      if (res1.data && res1.data.url) imgUrl = res1.data.url;
+    } catch (e) {}
 
-      const imgBuffer = await getBuffer(res.data.url);
-      if (!imgBuffer) return reply("❌ Image download failed.");
-
-      await remember.sendMessage(
-        from, 
-        { image: imgBuffer, caption: "🔞 *Anime Hentai*" }, 
-        { quoted: mek }
-      );
-    } catch (err) {
-      reply(`❌ Error: ${err.message}`);
+    // API 2: Nekos.best (Backup 1)
+    if (!imgUrl) {
+      try {
+        const res2 = await axios.get("https://nekos.best/api/v2/hentai", { timeout: 5000 });
+        if (res2.data && res2.data.results && res2.data.results[0]) imgUrl = res2.data.results[0].url;
+      } catch (e) {}
     }
-  }
-);
 
-// 4. HENTAI ANIMATED VIDEO
-cmd(
-  {
-    pattern: "hentaivid",
-    react: "🎥",
-    desc: "Send Animated Hentai Video",
-    category: "anime",
-    filename: __filename
-  },
-  async (remember, mek, m, { from, reply }) => {
-    try {
-      reply("⏳ *Fetching Video...*");
-
-      const res = await axios.get("https://api.waifu.pics/nsfw/neko", { timeout: 10000 });
-      if (!res.data || !res.data.url) return reply("❌ API fetch failed.");
-
-      const vidBuffer = await getBuffer(res.data.url);
-      if (!vidBuffer) return reply("❌ Video download failed.");
-
-      await remember.sendMessage(
-        from, 
-        { video: vidBuffer, caption: "🎥 *Animated Hentai*", gifPlayback: true }, 
-        { quoted: mek }
-      );
-    } catch (err) {
-      reply(`❌ Error: ${err.message}`);
+    // API 3: Meme-API Reddit (Backup 2)
+    if (!imgUrl) {
+      try {
+        const res3 = await axios.get("https://meme-api.com/gimme/hentai", { timeout: 5000 });
+        if (res3.data && res3.data.url) imgUrl = res3.data.url;
+      } catch (e) {}
     }
+
+    if (!imgUrl) return reply("❌ All servers are busy. Try again in a few seconds!");
+
+    const imgBuffer = await getBuffer(imgUrl);
+    if (!imgBuffer) return reply("❌ Image download failed.");
+
+    await remember.sendMessage(
+      from, 
+      { image: imgBuffer, caption: "🔞 *Anime Hentai*" }, 
+      { quoted: mek }
+    );
   }
 );
