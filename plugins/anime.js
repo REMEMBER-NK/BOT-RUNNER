@@ -1,14 +1,15 @@
 const { cmd } = require("../command");
 const axios = require("axios");
 
-// Safe Buffer Downloader
+// Safe Buffer Downloader with Timeout
 async function getBuffer(url) {
   try {
     const res = await axios.get(url, {
       responseType: 'arraybuffer',
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
+      },
+      timeout: 10000
     });
     return Buffer.from(res.data, 'binary');
   } catch (e) {
@@ -16,7 +17,7 @@ async function getBuffer(url) {
   }
 }
 
-// 1. ANIME SEARCH (Jikan API Bypass)
+// 1. ANIME SEARCH (Jikan API)
 cmd(
   {
     pattern: "anime",
@@ -29,7 +30,7 @@ cmd(
     try {
       if (!q) return reply("❌ Provide anime name. Example: .anime Naruto");
       
-      const res = await axios.get(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(q)}&limit=1`);
+      const res = await axios.get(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(q)}&limit=1`, { timeout: 8000 });
       const data = res.data;
 
       if (!data || !data.data || data.data.length === 0) return reply("❌ Anime not found.");
@@ -49,7 +50,7 @@ cmd(
   }
 );
 
-// 2. WAIFU (Open API - No Cloudflare 403 Block)
+// 2. WAIFU
 cmd(
   {
     pattern: "waifu",
@@ -60,16 +61,15 @@ cmd(
   },
   async (danuwa, mek, m, { from, reply }) => {
     try {
-      // 100% Free Direct Image Engine
-      const res = await axios.get("https://api.waifu.pics/sfw/waifu");
+      const res = await axios.get("https://api.catboys.com/img", { timeout: 8000 });
       const imageUrl = res.data.url;
 
       const imgBuffer = await getBuffer(imageUrl);
-      if (!imgBuffer) return reply("❌ Failed to download waifu image.");
+      if (!imgBuffer) return reply("❌ Download failed.");
 
       await danuwa.sendMessage(
         from,
-        { image: imgBuffer, caption: "🎴 *Waifu*" },
+        { image: imgBuffer, caption: "🎴 *Waifu / Anime Pic*" },
         { quoted: mek }
       );
     } catch (err) {
@@ -89,11 +89,11 @@ cmd(
   },
   async (danuwa, mek, m, { from, reply }) => {
     try {
-      const res = await axios.get("https://api.waifu.pics/sfw/neko");
-      const imageUrl = res.data.url;
+      const res = await axios.get("https://nekos.best/api/v2/neko", { timeout: 8000 });
+      const imageUrl = res.data.results[0].url;
 
       const imgBuffer = await getBuffer(imageUrl);
-      if (!imgBuffer) return reply("❌ Failed to download neko image.");
+      if (!imgBuffer) return reply("❌ Download failed.");
 
       await danuwa.sendMessage(
         from,
@@ -106,22 +106,24 @@ cmd(
   }
 );
 
-// 4. HENTAI (NSFW)
+// 4. HENTAI (NSFW - Working API)
 cmd(
   {
     pattern: "hentai",
     react: "🔞",
-    desc: "Send NSFW image",
+    desc: "Send NSFW Hentai image",
     category: "anime",
     filename: __filename
   },
   async (danuwa, mek, m, { from, reply }) => {
     try {
-      const res = await axios.get("https://api.waifu.pics/nsfw/waifu");
+      const res = await axios.get("https://nekos.life/api/v2/img/hentai", { timeout: 8000 });
       const imageUrl = res.data.url;
 
+      if (!imageUrl) return reply("❌ Failed to fetch NSFW image.");
+
       const imgBuffer = await getBuffer(imageUrl);
-      if (!imgBuffer) return reply("❌ Failed to download image.");
+      if (!imgBuffer) return reply("❌ Download failed.");
 
       await danuwa.sendMessage(
         from,
