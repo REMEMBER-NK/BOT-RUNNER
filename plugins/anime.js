@@ -96,7 +96,7 @@ cmd(
   }
 );
 
-// 4. HENTAI (Direct Permanent CDN Source - Zero API Error)
+// 4. HENTAI (Fixed Syntax)
 cmd(
   {
     pattern: "hentai",
@@ -107,22 +107,19 @@ cmd(
   },
   async (danuwa, mek, m, { from, reply }) => {
     try {
-      // Guaranteed Permanent Image CDN Links
-      const hentaiImages = [
-        "https://i.imgur.com/39JbhwE.jpeg",
-        "https://i.imgur.com/k93yO31.jpeg",
-        "https://i.imgur.com/V7M90s3.jpeg",
-        "https://i.imgur.com/R3zY25v.jpeg",
-        "https://i.imgur.com/2s4P1mS.jpeg",
-        "https://i.imgur.com/84lFp7j.jpeg"
-      ];
+      const res = await axios.get("https://meme-api.com/gimme/hentai", { timeout: 8000 });
+      if (!res.data || !res.data.url) return reply("❌ Image fetch failed.");
 
-      const randomImg = hentaiImages[Math.floor(Math.random() * hentaiImages.length)];
-      const imgBuffer = await getBuffer(randomImg);
+      const imgBuffer = await getBuffer(res.data.url);
+      if (!imgBuffer) return reply("❌ Image download failed.");
 
-      if (!imgBuffer) return reply("❌ Download failed.");
+      const title = res.data.title ? res.data.title : "Hentai";
 
-      await danuwa.sendMessage(from, { image: imgBuffer, caption: "🔞 *Hentai*" }, { quoted: mek });
+      await danuwa.sendMessage(
+        from, 
+        { image: imgBuffer, caption: `🔞 *${title}*` }, 
+        { quoted: mek }
+      );
     } catch (err) {
       reply(`❌ Error: ${err.message}`);
     }
