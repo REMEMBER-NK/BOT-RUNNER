@@ -109,6 +109,9 @@ cmd(
 // 4. HENTAI (NSFW - Working API)
 cmd(
   {
+    // 4. HENTAI (NSFW - 100% Stable API)
+cmd(
+  {
     pattern: "hentai",
     react: "🔞",
     desc: "Send NSFW Hentai image",
@@ -117,8 +120,8 @@ cmd(
   },
   async (danuwa, mek, m, { from, reply }) => {
     try {
-      const res = await axios.get("https://nekos.life/api/v2/img/hentai", { timeout: 8000 });
-      const imageUrl = res.data.url;
+      const res = await axios.get("https://purrbot.site/api/img/nsfw/hentai/gif", { timeout: 8000 });
+      const imageUrl = res.data.link;
 
       if (!imageUrl) return reply("❌ Failed to fetch NSFW image.");
 
@@ -127,7 +130,7 @@ cmd(
 
       await danuwa.sendMessage(
         from,
-        { image: imgBuffer, caption: "🔞 *Hentai*" },
+        { video: imgBuffer, gifPlayback: true, caption: "🔞 *Hentai*" },
         { quoted: mek }
       );
     } catch (err) {
