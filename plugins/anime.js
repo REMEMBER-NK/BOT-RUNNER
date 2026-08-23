@@ -7,10 +7,9 @@ async function getBuffer(url) {
     const res = await axios.get(url, {
       responseType: 'arraybuffer',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'video/mp4,video/*;q=0.9,*/*;q=0.8'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       },
-      timeout: 25000 // MP4 Videos Size වැඩි නිසා Timeout 25s කළා
+      timeout: 10000
     });
     return Buffer.from(res.data, 'binary');
   } catch (e) {
@@ -78,23 +77,21 @@ cmd(
   {
     pattern: "hentai",
     react: "🔞",
-    desc: "Send NSFW Hentai image",
+    desc: "Send Anime Hentai Image",
     category: "anime",
     filename: __filename
   },
   async (remember, mek, m, { from, reply }) => {
     try {
-      const res = await axios.get("https://meme-api.com/gimme/hentai", { timeout: 8000 });
-      if (!res.data || !res.data.url) return reply("❌ Image fetch failed.");
+      const res = await axios.get("https://api.waifu.pics/nsfw/waifu", { timeout: 8000 });
+      if (!res.data || !res.data.url) return reply("❌ API fetch failed.");
 
       const imgBuffer = await getBuffer(res.data.url);
       if (!imgBuffer) return reply("❌ Image download failed.");
 
-      const title = res.data.title ? res.data.title : "Hentai";
-
       await remember.sendMessage(
         from, 
-        { image: imgBuffer, caption: `🔞 *${title}*` }, 
+        { image: imgBuffer, caption: "🔞 *Anime Hentai*" }, 
         { quoted: mek }
       );
     } catch (err) {
@@ -103,36 +100,28 @@ cmd(
   }
 );
 
-// 4. HENTAI REAL MP4 VIDEO
+// 4. HENTAI ANIMATED VIDEO
 cmd(
   {
     pattern: "hentaivid",
     react: "🎥",
-    desc: "Send NSFW Real Hentai Video",
+    desc: "Send Animated Hentai Video",
     category: "anime",
     filename: __filename
   },
   async (remember, mek, m, { from, reply }) => {
     try {
-      reply("⏳ *Downloading MP4 Hentai Video...*");
+      reply("⏳ *Fetching Video...*");
 
-      // Direct MP4 Hentai Provider API
-      const res = await axios.get("https://api.shuttle.rip/v1/hentai/random", { timeout: 12000 });
-      const videoUrl = res.data?.url || res.data?.video;
+      const res = await axios.get("https://api.waifu.pics/nsfw/neko", { timeout: 10000 });
+      if (!res.data || !res.data.url) return reply("❌ API fetch failed.");
 
-      if (!videoUrl) return reply("❌ Video API limit reached. Try again!");
-
-      const vidBuffer = await getBuffer(videoUrl);
+      const vidBuffer = await getBuffer(res.data.url);
       if (!vidBuffer) return reply("❌ Video download failed.");
 
-      // Sends pure MP4 Video (gifPlayback: false)
       await remember.sendMessage(
         from, 
-        { 
-          video: vidBuffer, 
-          caption: "🎥 *Real Hentai Video (MP4)*",
-          mimetype: "video/mp4"
-        }, 
+        { video: vidBuffer, caption: "🎥 *Animated Hentai*", gifPlayback: true }, 
         { quoted: mek }
       );
     } catch (err) {
