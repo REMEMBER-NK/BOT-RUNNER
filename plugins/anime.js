@@ -9,7 +9,7 @@ async function getBuffer(url) {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       },
-      timeout: 10000
+      timeout: 15000 // Videos වලට Size වැඩි නිසා Timeout එක 15s කළා
     });
     return Buffer.from(res.data, 'binary');
   } catch (e) {
@@ -72,31 +72,7 @@ cmd(
   }
 );
 
-// 3. NEKO
-cmd(
-  {
-    pattern: "neko",
-    react: "🐱",
-    desc: "Send a random neko image",
-    category: "anime",
-    filename: __filename
-  },
-  async (danuwa, mek, m, { from, reply }) => {
-    try {
-      const res = await axios.get("https://nekos.best/api/v2/neko", { timeout: 8000 });
-      if (!res.data || !res.data.results || !res.data.results[0]) return reply("❌ API failed.");
-
-      const imgBuffer = await getBuffer(res.data.results[0].url);
-      if (!imgBuffer) return reply("❌ Image download failed.");
-
-      await danuwa.sendMessage(from, { image: imgBuffer, caption: "🐱 *Neko*" }, { quoted: mek });
-    } catch (err) {
-      reply(`❌ Error: ${err.message}`);
-    }
-  }
-);
-
-// 4. HENTAI (Fixed Syntax)
+// 3. HENTAI IMAGE
 cmd(
   {
     pattern: "hentai",
@@ -118,6 +94,36 @@ cmd(
       await danuwa.sendMessage(
         from, 
         { image: imgBuffer, caption: `🔞 *${title}*` }, 
+        { quoted: mek }
+      );
+    } catch (err) {
+      reply(`❌ Error: ${err.message}`);
+    }
+  }
+);
+
+// 4. HENTAI VIDEO (NEW)
+cmd(
+  {
+    pattern: "hentaivid",
+    react: "🎥",
+    desc: "Send NSFW Hentai Video",
+    category: "anime",
+    filename: __filename
+  },
+  async (danuwa, mek, m, { from, reply }) => {
+    try {
+      reply("⏳ *Downloading Hentai Video...*");
+      
+      const res = await axios.get("https://purrbot.site/api/img/nsfw/hentai/gif", { timeout: 10000 });
+      if (!res.data || !res.data.link) return reply("❌ Video fetch failed.");
+
+      const vidBuffer = await getBuffer(res.data.link);
+      if (!vidBuffer) return reply("❌ Video download failed.");
+
+      await danuwa.sendMessage(
+        from, 
+        { video: vidBuffer, caption: "🎥 *Hentai Video / GIF*", gifPlayback: true }, 
         { quoted: mek }
       );
     } catch (err) {
