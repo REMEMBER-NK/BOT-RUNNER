@@ -7,7 +7,7 @@ async function getBuffer(url) {
     const res = await axios.get(url, {
       responseType: 'arraybuffer',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       },
       timeout: 10000
     });
@@ -48,7 +48,7 @@ cmd(
   }
 );
 
-// 2. WAIFU
+// 2. WAIFU (SSL Fix applied via nekos.best)
 cmd(
   {
     pattern: "waifu",
@@ -59,10 +59,10 @@ cmd(
   },
   async (danuwa, mek, m, { from, reply }) => {
     try {
-      const res = await axios.get("https://api.catboys.com/img", { timeout: 8000 });
-      if (!res.data || !res.data.url) return reply("❌ API failed.");
+      const res = await axios.get("https://nekos.best/api/v2/waifu", { timeout: 8000 });
+      if (!res.data || !res.data.results || !res.data.results[0]) return reply("❌ API failed.");
 
-      const imgBuffer = await getBuffer(res.data.url);
+      const imgBuffer = await getBuffer(res.data.results[0].url);
       if (!imgBuffer) return reply("❌ Image download failed.");
 
       await danuwa.sendMessage(from, { image: imgBuffer, caption: "🎴 *Waifu*" }, { quoted: mek });
@@ -96,7 +96,7 @@ cmd(
   }
 );
 
-// 4. HENTAI (Pure Image Only - No GIF Crash)
+// 4. HENTAI (Cloudflare / 403 Bypass API)
 cmd(
   {
     pattern: "hentai",
@@ -107,10 +107,10 @@ cmd(
   },
   async (danuwa, mek, m, { from, reply }) => {
     try {
-      const res = await axios.get("https://purrbot.site/api/img/nsfw/hentai/img", { timeout: 8000 });
-      if (!res.data || !res.data.link) return reply("❌ API failed.");
+      const res = await axios.get("https://api.waifu.im/search?is_nsfw=true", { timeout: 8000 });
+      if (!res.data || !res.data.images || !res.data.images[0]) return reply("❌ API failed.");
 
-      const imgBuffer = await getBuffer(res.data.link);
+      const imgBuffer = await getBuffer(res.data.images[0].url);
       if (!imgBuffer) return reply("❌ Image download failed.");
 
       await danuwa.sendMessage(from, { image: imgBuffer, caption: "🔞 *Hentai*" }, { quoted: mek });
