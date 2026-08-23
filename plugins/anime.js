@@ -9,7 +9,7 @@ async function getBuffer(url) {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       },
-      timeout: 15000 // Videos වලට Size වැඩි නිසා Timeout එක 15s කළා
+      timeout: 15000
     });
     return Buffer.from(res.data, 'binary');
   } catch (e) {
@@ -26,7 +26,7 @@ cmd(
     category: "anime",
     filename: __filename
   },
-  async (danuwa, mek, m, { from, q, reply }) => {
+  async (remember, mek, m, { from, q, reply }) => {
     try {
       if (!q) return reply("❌ Provide anime name. Example: .anime Naruto");
       
@@ -38,9 +38,9 @@ cmd(
 
       const imgBuffer = await getBuffer(anime.images.jpg.image_url);
       if (imgBuffer) {
-        await danuwa.sendMessage(from, { image: imgBuffer, caption: text }, { quoted: mek });
+        await remember.sendMessage(from, { image: imgBuffer, caption: text }, { quoted: mek });
       } else {
-        await danuwa.sendMessage(from, { text }, { quoted: mek });
+        await remember.sendMessage(from, { text }, { quoted: mek });
       }
     } catch (err) {
       reply(`❌ Error: ${err.message}`);
@@ -57,7 +57,7 @@ cmd(
     category: "anime",
     filename: __filename
   },
-  async (danuwa, mek, m, { from, reply }) => {
+  async (remember, mek, m, { from, reply }) => {
     try {
       const res = await axios.get("https://nekos.best/api/v2/waifu", { timeout: 8000 });
       if (!res.data || !res.data.results || !res.data.results[0]) return reply("❌ API failed.");
@@ -65,7 +65,7 @@ cmd(
       const imgBuffer = await getBuffer(res.data.results[0].url);
       if (!imgBuffer) return reply("❌ Image download failed.");
 
-      await danuwa.sendMessage(from, { image: imgBuffer, caption: "🎴 *Waifu*" }, { quoted: mek });
+      await remember.sendMessage(from, { image: imgBuffer, caption: "🎴 *Waifu*" }, { quoted: mek });
     } catch (err) {
       reply(`❌ Error: ${err.message}`);
     }
@@ -81,7 +81,7 @@ cmd(
     category: "anime",
     filename: __filename
   },
-  async (danuwa, mek, m, { from, reply }) => {
+  async (remember, mek, m, { from, reply }) => {
     try {
       const res = await axios.get("https://meme-api.com/gimme/hentai", { timeout: 8000 });
       if (!res.data || !res.data.url) return reply("❌ Image fetch failed.");
@@ -91,7 +91,7 @@ cmd(
 
       const title = res.data.title ? res.data.title : "Hentai";
 
-      await danuwa.sendMessage(
+      await remember.sendMessage(
         from, 
         { image: imgBuffer, caption: `🔞 *${title}*` }, 
         { quoted: mek }
@@ -102,7 +102,7 @@ cmd(
   }
 );
 
-// 4. HENTAI VIDEO (NEW)
+// 4. HENTAI VIDEO
 cmd(
   {
     pattern: "hentaivid",
@@ -111,19 +111,21 @@ cmd(
     category: "anime",
     filename: __filename
   },
-  async (danuwa, mek, m, { from, reply }) => {
+  async (remember, mek, m, { from, reply }) => {
     try {
       reply("⏳ *Downloading Hentai Video...*");
-      
-      const res = await axios.get("https://purrbot.site/api/img/nsfw/hentai/gif", { timeout: 10000 });
-      if (!res.data || !res.data.link) return reply("❌ Video fetch failed.");
 
-      const vidBuffer = await getBuffer(res.data.link);
+      const res = await axios.get("https://meme-api.com/gimme/hentai_gifs", { timeout: 10000 });
+      if (!res.data || !res.data.url) return reply("❌ Video fetch failed.");
+
+      const vidBuffer = await getBuffer(res.data.url);
       if (!vidBuffer) return reply("❌ Video download failed.");
 
-      await danuwa.sendMessage(
+      const title = res.data.title ? res.data.title : "Hentai Video";
+
+      await remember.sendMessage(
         from, 
-        { video: vidBuffer, caption: "🎥 *Hentai Video / GIF*", gifPlayback: true }, 
+        { video: vidBuffer, caption: `🎥 *${title}*`, gifPlayback: true }, 
         { quoted: mek }
       );
     } catch (err) {
