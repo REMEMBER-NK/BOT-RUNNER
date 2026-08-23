@@ -1,13 +1,14 @@
 const { cmd } = require("../command");
 const axios = require("axios");
 
-// Safe Buffer Downloader
+// Cloudflare Protection Bypass Buffer Downloader
 async function getBuffer(url) {
   try {
     const res = await axios.get(url, {
       responseType: 'arraybuffer',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0',
+        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
       },
       timeout: 10000
     });
@@ -17,7 +18,7 @@ async function getBuffer(url) {
   }
 }
 
-// 1. ANIME SEARCH
+// 1. ANIME SEARCH (Jikan API)
 cmd(
   {
     pattern: "anime",
@@ -48,7 +49,7 @@ cmd(
   }
 );
 
-// 2. WAIFU (SSL Fix applied via nekos.best)
+// 2. WAIFU (nekos.best - Free & Direct)
 cmd(
   {
     pattern: "waifu",
@@ -72,7 +73,7 @@ cmd(
   }
 );
 
-// 3. NEKO
+// 3. NEKO (nekos.best)
 cmd(
   {
     pattern: "neko",
@@ -96,7 +97,7 @@ cmd(
   }
 );
 
-// 4. HENTAI (Cloudflare / 403 Bypass API)
+// 4. HENTAI (Open CDN Bypass - No 403 Auth Error)
 cmd(
   {
     pattern: "hentai",
@@ -107,10 +108,12 @@ cmd(
   },
   async (danuwa, mek, m, { from, reply }) => {
     try {
-      const res = await axios.get("https://api.waifu.im/search?is_nsfw=true", { timeout: 8000 });
-      if (!res.data || !res.data.images || !res.data.images[0]) return reply("❌ API failed.");
+      // Direct open CDN endpoint (No Cloudflare Block)
+      const res = await axios.get("https://raw.githubusercontent.com/AhegaoDev/hentai-api/main/data.json", { timeout: 8000 });
+      const images = res.data;
+      const randomImg = images[Math.floor(Math.random() * images.length)];
 
-      const imgBuffer = await getBuffer(res.data.images[0].url);
+      const imgBuffer = await getBuffer(randomImg);
       if (!imgBuffer) return reply("❌ Image download failed.");
 
       await danuwa.sendMessage(from, { image: imgBuffer, caption: "🔞 *Hentai*" }, { quoted: mek });
