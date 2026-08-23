@@ -7,8 +7,7 @@ async function getBuffer(url) {
     const res = await axios.get(url, {
       responseType: 'arraybuffer',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0',
-        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       },
       timeout: 10000
     });
@@ -49,7 +48,7 @@ cmd(
   }
 );
 
-// 2. WAIFU (nekos.best - Free & Direct)
+// 2. WAIFU (nekos.best)
 cmd(
   {
     pattern: "waifu",
@@ -97,7 +96,7 @@ cmd(
   }
 );
 
-// 4. HENTAI (Open CDN Bypass - No 403 Auth Error)
+// 4. HENTAI (100% Active Direct NSFW API)
 cmd(
   {
     pattern: "hentai",
@@ -108,12 +107,18 @@ cmd(
   },
   async (danuwa, mek, m, { from, reply }) => {
     try {
-      // Direct open CDN endpoint (No Cloudflare Block)
-      const res = await axios.get("https://raw.githubusercontent.com/AhegaoDev/hentai-api/main/data.json", { timeout: 8000 });
-      const images = res.data;
-      const randomImg = images[Math.floor(Math.random() * images.length)];
+      const res = await axios.get("https://api.hentai.im/random", { timeout: 8000 });
+      const imageUrl = res.data?.url || res.data?.image;
 
-      const imgBuffer = await getBuffer(randomImg);
+      if (!imageUrl) {
+        // Fallback API if primary is slow
+        const fallbackRes = await axios.get("https://nekos.life/api/v2/img/hentai", { timeout: 8000 });
+        var finalUrl = fallbackRes.data.url;
+      } else {
+        var finalUrl = imageUrl;
+      }
+
+      const imgBuffer = await getBuffer(finalUrl);
       if (!imgBuffer) return reply("❌ Image download failed.");
 
       await danuwa.sendMessage(from, { image: imgBuffer, caption: "🔞 *Hentai*" }, { quoted: mek });
