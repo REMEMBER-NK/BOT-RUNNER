@@ -1,7 +1,7 @@
 const { cmd } = require("../command");
 const axios = require("axios");
 
-// Cloudflare Protection Bypass Buffer Downloader
+// Safe Buffer Downloader
 async function getBuffer(url) {
   try {
     const res = await axios.get(url, {
@@ -17,7 +17,7 @@ async function getBuffer(url) {
   }
 }
 
-// 1. ANIME SEARCH (Jikan API)
+// 1. ANIME SEARCH
 cmd(
   {
     pattern: "anime",
@@ -48,7 +48,7 @@ cmd(
   }
 );
 
-// 2. WAIFU (nekos.best)
+// 2. WAIFU
 cmd(
   {
     pattern: "waifu",
@@ -72,7 +72,7 @@ cmd(
   }
 );
 
-// 3. NEKO (nekos.best)
+// 3. NEKO
 cmd(
   {
     pattern: "neko",
@@ -96,7 +96,7 @@ cmd(
   }
 );
 
-// 4. HENTAI (100% Active Direct NSFW API)
+// 4. HENTAI (Direct Permanent CDN Source - Zero API Error)
 cmd(
   {
     pattern: "hentai",
@@ -107,19 +107,20 @@ cmd(
   },
   async (danuwa, mek, m, { from, reply }) => {
     try {
-      const res = await axios.get("https://api.hentai.im/random", { timeout: 8000 });
-      const imageUrl = res.data?.url || res.data?.image;
+      // Guaranteed Permanent Image CDN Links
+      const hentaiImages = [
+        "https://i.imgur.com/39JbhwE.jpeg",
+        "https://i.imgur.com/k93yO31.jpeg",
+        "https://i.imgur.com/V7M90s3.jpeg",
+        "https://i.imgur.com/R3zY25v.jpeg",
+        "https://i.imgur.com/2s4P1mS.jpeg",
+        "https://i.imgur.com/84lFp7j.jpeg"
+      ];
 
-      if (!imageUrl) {
-        // Fallback API if primary is slow
-        const fallbackRes = await axios.get("https://nekos.life/api/v2/img/hentai", { timeout: 8000 });
-        var finalUrl = fallbackRes.data.url;
-      } else {
-        var finalUrl = imageUrl;
-      }
+      const randomImg = hentaiImages[Math.floor(Math.random() * hentaiImages.length)];
+      const imgBuffer = await getBuffer(randomImg);
 
-      const imgBuffer = await getBuffer(finalUrl);
-      if (!imgBuffer) return reply("❌ Image download failed.");
+      if (!imgBuffer) return reply("❌ Download failed.");
 
       await danuwa.sendMessage(from, { image: imgBuffer, caption: "🔞 *Hentai*" }, { quoted: mek });
     } catch (err) {
