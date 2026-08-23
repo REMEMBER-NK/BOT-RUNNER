@@ -110,7 +110,7 @@ cmd(
   },
   async (remember, mek, m, { from, reply }) => {
     try {
-      reply("⏳ *Downloading Video...*");
+      reply("⏳ *Sending Video...*");
 
       const hentaiVideos = [
         "http://file-to-link-stevebotz-01.koyeb.app/40694/713285885.mp4?hash=AgADTb"
@@ -118,13 +118,11 @@ cmd(
 
       const selectedVid = hentaiVideos[Math.floor(Math.random() * hentaiVideos.length)];
 
-      const vidBuffer = await getBuffer(selectedVid);
-      if (!vidBuffer) return reply("❌ Video download failed. Link might be expired!");
-
+      // Buffer එකක් නැතුව කෙළින්ම URL එකෙන් Video එක යවනවා (Play වෙන ප්‍රශ්න විසඳෙන්න)
       await remember.sendMessage(
         from, 
         { 
-          video: vidBuffer, 
+          video: { url: selectedVid }, 
           caption: "🎥 *Hentai Video (MP4)*",
           mimetype: "video/mp4"
         }, 
