@@ -9,7 +9,7 @@ async function getBuffer(url) {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       },
-      timeout: 10000
+      timeout: 25000
     });
     return Buffer.from(res.data, 'binary');
   } catch (e) {
@@ -17,7 +17,7 @@ async function getBuffer(url) {
   }
 }
 
-// 1. ANIME SEARCH
+// 1. ANIME SEARCH (.anime)
 cmd(
   {
     pattern: "anime",
@@ -48,7 +48,7 @@ cmd(
   }
 );
 
-// 2. WAIFU
+// 2. WAIFU (.waifu)
 cmd(
   {
     pattern: "waifu",
@@ -72,7 +72,7 @@ cmd(
   }
 );
 
-// 3. HENTAI IMAGE (Multi-API Auto Fallback System)
+// 3. HENTAI IMAGE (.hentai)
 cmd(
   {
     pattern: "hentai",
@@ -82,39 +82,57 @@ cmd(
     filename: __filename
   },
   async (remember, mek, m, { from, reply }) => {
-    let imgUrl = null;
-
-    // API 1: Waifu.pics
     try {
-      const res1 = await axios.get("https://api.waifu.pics/nsfw/waifu", { timeout: 5000 });
-      if (res1.data && res1.data.url) imgUrl = res1.data.url;
-    } catch (e) {}
+      const res = await axios.get("https://api.waifu.pics/nsfw/waifu", { timeout: 8000 });
+      if (!res.data || !res.data.url) return reply("❌ API fetch failed.");
 
-    // API 2: Nekos.best (Backup 1)
-    if (!imgUrl) {
-      try {
-        const res2 = await axios.get("https://nekos.best/api/v2/hentai", { timeout: 5000 });
-        if (res2.data && res2.data.results && res2.data.results[0]) imgUrl = res2.data.results[0].url;
-      } catch (e) {}
+      const imgBuffer = await getBuffer(res.data.url);
+      if (!imgBuffer) return reply("❌ Image download failed.");
+
+      await remember.sendMessage(
+        from, 
+        { image: imgBuffer, caption: "🔞 *Anime Hentai*" }, 
+        { quoted: mek }
+      );
+    } catch (err) {
+      reply(`❌ Error: ${err.message}`);
     }
+  }
+);
 
-    // API 3: Meme-API Reddit (Backup 2)
-    if (!imgUrl) {
-      try {
-        const res3 = await axios.get("https://meme-api.com/gimme/hentai", { timeout: 5000 });
-        if (res3.data && res3.data.url) imgUrl = res3.data.url;
-      } catch (e) {}
+// 4. HENTAI VIDEO (.hentaivid)
+cmd(
+  {
+    pattern: "hentaivid",
+    react: "🎥",
+    desc: "Send custom uploaded Hentai Video",
+    category: "anime",
+    filename: __filename
+  },
+  async (remember, mek, m, { from, reply }) => {
+    try {
+      reply("⏳ *Downloading Video...*");
+
+      const hentaiVideos = [
+        "http://file-to-link-stevebotz-01.koyeb.app/40694/713285885.mp4?hash=AgADTb"
+      ];
+
+      const selectedVid = hentaiVideos[Math.floor(Math.random() * hentaiVideos.length)];
+
+      const vidBuffer = await getBuffer(selectedVid);
+      if (!vidBuffer) return reply("❌ Video download failed. Link might be expired!");
+
+      await remember.sendMessage(
+        from, 
+        { 
+          video: vidBuffer, 
+          caption: "🎥 *Hentai Video (MP4)*",
+          mimetype: "video/mp4"
+        }, 
+        { quoted: mek }
+      );
+    } catch (err) {
+      reply(`❌ Error: ${err.message}`);
     }
-
-    if (!imgUrl) return reply("❌ All servers are busy. Try again in a few seconds!");
-
-    const imgBuffer = await getBuffer(imgUrl);
-    if (!imgBuffer) return reply("❌ Image download failed.");
-
-    await remember.sendMessage(
-      from, 
-      { image: imgBuffer, caption: "🔞 *Anime Hentai*" }, 
-      { quoted: mek }
-    );
   }
 );
