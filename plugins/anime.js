@@ -1,62 +1,22 @@
 const { cmd } = require("../command");
-const https = require("https");
+const axios = require("axios");
 
-// Native HTTPS Fetcher (Cloudflare / Block Bypass)
-function fetchJSON(url) {
-  return new Promise((resolve, reject) => {
-    const options = {
+// Safe Buffer Downloader
+async function getBuffer(url) {
+  try {
+    const res = await axios.get(url, {
+      responseType: 'arraybuffer',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'application/json'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       }
-    };
-
-    https.get(url, options, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          if (res.statusCode >= 200 && res.statusCode < 300) {
-            resolve(JSON.parse(data));
-          } else {
-            reject(new Error(`HTTP ${res.statusCode}`));
-          }
-        } catch (e) {
-          reject(e);
-        }
-      });
-    }).on('error', err => reject(err));
-  });
+    });
+    return Buffer.from(res.data, 'binary');
+  } catch (e) {
+    return null;
+  }
 }
 
-// Native HTTPS Buffer Fetcher for Images
-function fetchBuffer(url) {
-  return new Promise((resolve, reject) => {
-    const options = {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-      }
-    };
-
-    https.get(url, options, (res) => {
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        return fetchBuffer(res.headers.location).then(resolve).catch(reject);
-      }
-      
-      const chunks = [];
-      res.on('data', chunk => chunks.push(chunk));
-      res.on('end', () => {
-        if (res.statusCode === 200) {
-          resolve(Buffer.concat(chunks));
-        } else {
-          reject(new Error(`Image HTTP ${res.statusCode}`));
-        }
-      });
-    }).on('error', err => reject(err));
-  });
-}
-
-// 1. ANIME SEARCH
+// 1. ANIME SEARCH (Jikan API Bypass)
 cmd(
   {
     pattern: "anime",
@@ -69,21 +29,27 @@ cmd(
     try {
       if (!q) return reply("❌ Provide anime name. Example: .anime Naruto");
       
-      const data = await fetchJSON(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(q)}&limit=1`);
+      const res = await axios.get(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(q)}&limit=1`);
+      const data = res.data;
+
       if (!data || !data.data || data.data.length === 0) return reply("❌ Anime not found.");
 
       const anime = data.data[0];
       const text = `📺 *Title:* ${anime.title}\n📝 *Episodes:* ${anime.episodes || "?"}\n⭐ *Rating:* ${anime.score || "?"}\n🎭 *Genres:* ${anime.genres.map(g => g.name).join(", ")}`;
 
-      const imgBuffer = await fetchBuffer(anime.images.jpg.image_url);
-      await danuwa.sendMessage(from, { image: imgBuffer, caption: text }, { quoted: mek });
+      const imgBuffer = await getBuffer(anime.images.jpg.image_url);
+      if (imgBuffer) {
+        await danuwa.sendMessage(from, { image: imgBuffer, caption: text }, { quoted: mek });
+      } else {
+        await danuwa.sendMessage(from, { text }, { quoted: mek });
+      }
     } catch (err) {
-      reply(`❌ Anime Error: ${err.message}`);
+      reply(`❌ Error: ${err.message}`);
     }
   }
 );
 
-// 2. WAIFU IMAGE
+// 2. WAIFU (Open API - No Cloudflare 403 Block)
 cmd(
   {
     pattern: "waifu",
@@ -94,18 +60,25 @@ cmd(
   },
   async (danuwa, mek, m, { from, reply }) => {
     try {
-      const data = await fetchJSON("https://api.waifu.im/search");
-      if (!data || !data.images || !data.images[0]) return reply("❌ Waifu API Empty.");
+      // 100% Free Direct Image Engine
+      const res = await axios.get("https://api.waifu.pics/sfw/waifu");
+      const imageUrl = res.data.url;
 
-      const imgBuffer = await fetchBuffer(data.images[0].url);
-      await danuwa.sendMessage(from, { image: imgBuffer, caption: "🎴 *Waifu*" }, { quoted: mek });
+      const imgBuffer = await getBuffer(imageUrl);
+      if (!imgBuffer) return reply("❌ Failed to download waifu image.");
+
+      await danuwa.sendMessage(
+        from,
+        { image: imgBuffer, caption: "🎴 *Waifu*" },
+        { quoted: mek }
+      );
     } catch (err) {
-      reply(`❌ Waifu Error: ${err.message}`);
+      reply(`❌ Error: ${err.message}`);
     }
   }
 );
 
-// 3. NEKO IMAGE
+// 3. NEKO
 cmd(
   {
     pattern: "neko",
@@ -116,13 +89,47 @@ cmd(
   },
   async (danuwa, mek, m, { from, reply }) => {
     try {
-      const data = await fetchJSON("https://nekos.best/api/v2/neko");
-      if (!data || !data.results || !data.results[0]) return reply("❌ Neko API Empty.");
+      const res = await axios.get("https://api.waifu.pics/sfw/neko");
+      const imageUrl = res.data.url;
 
-      const imgBuffer = await fetchBuffer(data.results[0].url);
-      await danuwa.sendMessage(from, { image: imgBuffer, caption: "🐱 *Neko*" }, { quoted: mek });
+      const imgBuffer = await getBuffer(imageUrl);
+      if (!imgBuffer) return reply("❌ Failed to download neko image.");
+
+      await danuwa.sendMessage(
+        from,
+        { image: imgBuffer, caption: "🐱 *Neko*" },
+        { quoted: mek }
+      );
     } catch (err) {
-      reply(`❌ Neko Error: ${err.message}`);
+      reply(`❌ Error: ${err.message}`);
+    }
+  }
+);
+
+// 4. HENTAI (NSFW)
+cmd(
+  {
+    pattern: "hentai",
+    react: "🔞",
+    desc: "Send NSFW image",
+    category: "anime",
+    filename: __filename
+  },
+  async (danuwa, mek, m, { from, reply }) => {
+    try {
+      const res = await axios.get("https://api.waifu.pics/nsfw/waifu");
+      const imageUrl = res.data.url;
+
+      const imgBuffer = await getBuffer(imageUrl);
+      if (!imgBuffer) return reply("❌ Failed to download image.");
+
+      await danuwa.sendMessage(
+        from,
+        { image: imgBuffer, caption: "🔞 *Hentai*" },
+        { quoted: mek }
+      );
+    } catch (err) {
+      reply(`❌ Error: ${err.message}`);
     }
   }
 );
