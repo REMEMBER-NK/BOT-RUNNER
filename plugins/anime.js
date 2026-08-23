@@ -59,7 +59,7 @@ cmd(
       } catch (e) {}
     }
 
-    // API 5: Reddit Meme-API (r/hentai)
+    // API 5: Reddit Meme-API
     if (!imgUrl) {
       try {
         const res5 = await axios.get("https://meme-api.com/gimme/hentai", { timeout: 4000 });
@@ -75,12 +75,11 @@ cmd(
       } catch (e) {}
     }
 
-    if (!imgUrl) return reply("❌ All 6 servers are busy. Please try again in a few seconds!");
+    if (!imgUrl) return reply("❌ All image servers are busy. Try again!");
 
     const imgBuffer = await getBuffer(imgUrl);
     if (!imgBuffer) return reply("❌ Image download failed.");
 
-    // Custom Titles Array
     const titles = [
       "Frieren used magic [Frieren: Beyond Journey's End]",
       "Naruto & Sasuke Special Scene",
@@ -112,13 +111,14 @@ cmd(
     try {
       reply("⏳ *Sending Video...*");
 
+      // 🔴 Catbox Permanent Video Link 🔴
       const hentaiVideos = [
-        "http://file-to-link-stevebotz-01.koyeb.app/40694/713285885.mp4?hash=AgADTb"
+        "https://files.catbox.moe/rtyzi7.mp4"
       ];
 
       const selectedVid = hentaiVideos[Math.floor(Math.random() * hentaiVideos.length)];
 
-      // Buffer එකක් නැතුව කෙළින්ම URL එකෙන් Video එක යවනවා (Play වෙන ප්‍රශ්න විසඳෙන්න)
+      // Direct URL Stream (No file corruptions & smooth play)
       await remember.sendMessage(
         from, 
         { 
