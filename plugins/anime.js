@@ -7,9 +7,10 @@ async function getBuffer(url) {
     const res = await axios.get(url, {
       responseType: 'arraybuffer',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'video/mp4,video/*;q=0.9,*/*;q=0.8'
       },
-      timeout: 20000
+      timeout: 25000 // MP4 Videos Size වැඩි නිසා Timeout 25s කළා
     });
     return Buffer.from(res.data, 'binary');
   } catch (e) {
@@ -102,35 +103,36 @@ cmd(
   }
 );
 
-// 4. HENTAI VIDEO (Permanent Direct Video CDN - Zero API Failure)
+// 4. HENTAI REAL MP4 VIDEO
 cmd(
   {
     pattern: "hentaivid",
     react: "🎥",
-    desc: "Send NSFW Hentai Video",
+    desc: "Send NSFW Real Hentai Video",
     category: "anime",
     filename: __filename
   },
   async (remember, mek, m, { from, reply }) => {
     try {
-      reply("⏳ *Downloading Hentai Video...*");
+      reply("⏳ *Downloading MP4 Hentai Video...*");
 
-      // Stable Direct Video CDN Stream Links
-      const videoList = [
-        "https://cdn.videy.co/jY6CjFvT.mp4",
-        "https://cdn.videy.co/K2wR09mX.mp4",
-        "https://cdn.videy.co/s8pD2mX1.mp4",
-        "https://cdn.videy.co/A9xR71pQ.mp4"
-      ];
+      // Direct MP4 Hentai Provider API
+      const res = await axios.get("https://api.shuttle.rip/v1/hentai/random", { timeout: 12000 });
+      const videoUrl = res.data?.url || res.data?.video;
 
-      const randomVid = videoList[Math.floor(Math.random() * videoList.length)];
-      const vidBuffer = await getBuffer(randomVid);
+      if (!videoUrl) return reply("❌ Video API limit reached. Try again!");
 
+      const vidBuffer = await getBuffer(videoUrl);
       if (!vidBuffer) return reply("❌ Video download failed.");
 
+      // Sends pure MP4 Video (gifPlayback: false)
       await remember.sendMessage(
         from, 
-        { video: vidBuffer, caption: "🎥 *Hentai Video*", gifPlayback: true }, 
+        { 
+          video: vidBuffer, 
+          caption: "🎥 *Real Hentai Video (MP4)*",
+          mimetype: "video/mp4"
+        }, 
         { quoted: mek }
       );
     } catch (err) {
