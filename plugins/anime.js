@@ -17,62 +17,7 @@ async function getBuffer(url) {
   }
 }
 
-// 1. ANIME SEARCH (.anime)
-cmd(
-  {
-    pattern: "anime",
-    react: "📺",
-    desc: "Search anime details",
-    category: "anime",
-    filename: __filename
-  },
-  async (remember, mek, m, { from, q, reply }) => {
-    try {
-      if (!q) return reply("❌ Provide anime name. Example: .anime Naruto");
-      
-      const res = await axios.get(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(q)}&limit=1`, { timeout: 8000 });
-      if (!res.data || !res.data.data || res.data.data.length === 0) return reply("❌ Anime not found.");
-
-      const anime = res.data.data[0];
-      const text = `📺 *Title:* ${anime.title}\n📝 *Episodes:* ${anime.episodes || "?"}\n⭐ *Rating:* ${anime.score || "?"}\n🎭 *Genres:* ${anime.genres.map(g => g.name).join(", ")}`;
-
-      const imgBuffer = await getBuffer(anime.images.jpg.image_url);
-      if (imgBuffer) {
-        await remember.sendMessage(from, { image: imgBuffer, caption: text }, { quoted: mek });
-      } else {
-        await remember.sendMessage(from, { text }, { quoted: mek });
-      }
-    } catch (err) {
-      reply(`❌ Error: ${err.message}`);
-    }
-  }
-);
-
-// 2. WAIFU (.waifu)
-cmd(
-  {
-    pattern: "waifu",
-    react: "🎴",
-    desc: "Send a random waifu image",
-    category: "anime",
-    filename: __filename
-  },
-  async (remember, mek, m, { from, reply }) => {
-    try {
-      const res = await axios.get("https://nekos.best/api/v2/waifu", { timeout: 8000 });
-      if (!res.data || !res.data.results || !res.data.results[0]) return reply("❌ API failed.");
-
-      const imgBuffer = await getBuffer(res.data.results[0].url);
-      if (!imgBuffer) return reply("❌ Image download failed.");
-
-      await remember.sendMessage(from, { image: imgBuffer, caption: "🎴 *Waifu*" }, { quoted: mek });
-    } catch (err) {
-      reply(`❌ Error: ${err.message}`);
-    }
-  }
-);
-
-// 3. HENTAI IMAGE (.hentai)
+// 1. HENTAI IMAGE WITH CUSTOM CAPTIONS (.hentai)
 cmd(
   {
     pattern: "hentai",
@@ -83,15 +28,28 @@ cmd(
   },
   async (remember, mek, m, { from, reply }) => {
     try {
+      // 1. Image API එකෙන් ගන්නවා
       const res = await axios.get("https://api.waifu.pics/nsfw/waifu", { timeout: 8000 });
       if (!res.data || !res.data.url) return reply("❌ API fetch failed.");
 
       const imgBuffer = await getBuffer(res.data.url);
       if (!imgBuffer) return reply("❌ Image download failed.");
 
+      // 2. Random Captions
+      const titles = [
+        "Frieren used magic [Frieren: Beyond Journey's End]",
+        "Naruto & Sasuke Special Scene",
+        "Waifu Special Moment",
+        "Anime NSFW Art Collection",
+        "Ecchi Moment #1",
+        "Hot Anime Scene"
+      ];
+      const randomTitle = titles[Math.floor(Math.random() * titles.length)];
+
+      // 3. යවනකොට Title එක Caption එකට දාලා යවනවා
       await remember.sendMessage(
         from, 
-        { image: imgBuffer, caption: "🔞 *Anime Hentai*" }, 
+        { image: imgBuffer, caption: `🔞 *${randomTitle}*` }, 
         { quoted: mek }
       );
     } catch (err) {
@@ -100,7 +58,7 @@ cmd(
   }
 );
 
-// 4. HENTAI VIDEO (.hentaivid)
+// 2. HENTAI MP4 VIDEO (.hentaivid)
 cmd(
   {
     pattern: "hentaivid",
