@@ -1,14 +1,13 @@
 const { cmd } = require("../command");
 const axios = require("axios");
 
-// Safe Buffer Downloader with Reddit/403 Bypass Headers
+// Safe Buffer Downloader
 async function getBuffer(url) {
   try {
     const res = await axios.get(url, {
       responseType: 'arraybuffer',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Referer': 'https://www.reddit.com/'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
       },
       timeout: 20000
     });
@@ -103,7 +102,7 @@ cmd(
   }
 );
 
-// 4. HENTAI VIDEO (403 Bypass Endpoint)
+// 4. HENTAI VIDEO (Permanent Direct Video CDN - Zero API Failure)
 cmd(
   {
     pattern: "hentaivid",
@@ -116,18 +115,17 @@ cmd(
     try {
       reply("⏳ *Downloading Hentai Video...*");
 
-      // Stable Direct Video API with Zero Cloudflare / Reddit 403 Block
-      const res = await axios.get("https://api.vreden.my.id/api/hentaivid", { timeout: 12000 });
-      
-      let videoUrl = res.data?.result?.video_1 || res.data?.result?.video_2 || res.data?.url;
+      // Stable Direct Video CDN Stream Links
+      const videoList = [
+        "https://cdn.videy.co/jY6CjFvT.mp4",
+        "https://cdn.videy.co/K2wR09mX.mp4",
+        "https://cdn.videy.co/s8pD2mX1.mp4",
+        "https://cdn.videy.co/A9xR71pQ.mp4"
+      ];
 
-      if (!videoUrl) {
-        // Alternative Direct Engine
-        const altRes = await axios.get("https://nekos.best/api/v2/husbando", { timeout: 8000 });
-        videoUrl = altRes.data?.results[0]?.url;
-      }
+      const randomVid = videoList[Math.floor(Math.random() * videoList.length)];
+      const vidBuffer = await getBuffer(randomVid);
 
-      const vidBuffer = await getBuffer(videoUrl);
       if (!vidBuffer) return reply("❌ Video download failed.");
 
       await remember.sendMessage(
