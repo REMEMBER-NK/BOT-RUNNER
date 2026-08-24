@@ -114,7 +114,7 @@ cmd(
       // 🔴 Catbox Permanent Video Link 🔴
       const hentaiVideos = [
         "https://files.catbox.moe/rtyzi7.mp4",
-        "https://files.catbox.moe/43gzc4.mov"
+        "https://files.catbox.moe/3ycpn4.mp4"
       ];
 
       const selectedVid = hentaiVideos[Math.floor(Math.random() * hentaiVideos.length)];
