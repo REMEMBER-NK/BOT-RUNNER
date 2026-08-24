@@ -1,7 +1,7 @@
 const { cmd } = require("../command");
 const axios = require("axios");
 
-// Safe Buffer Downloader
+// Safe Buffer Downloader - Strict Max 4MB Limit
 async function getBuffer(url) {
   try {
     const res = await axios.get(url, {
@@ -9,76 +9,59 @@ async function getBuffer(url) {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       },
-      timeout: 25000
+      timeout: 8000 // Fast Timeout (8 Sec)
     });
-    return Buffer.from(res.data, 'binary');
+
+    const buffer = Buffer.from(res.data, 'binary');
+    // File size එක MB 4ට වඩා වැඩිනම් Skip කරලා Fast images විතරක් ගන්නවා
+    if (buffer.length > 4 * 1024 * 1024) return null; 
+
+    return buffer;
   } catch (e) {
     return null;
   }
 }
 
-// 1. HENTAI IMAGE WITH 6 APIS & CUSTOM CAPTIONS (.hentai)
+// 1. FAST HENTAI IMAGE (.hentai)
 cmd(
   {
     pattern: "hentai",
     react: "🔞",
-    desc: "Send Anime Hentai Image",
+    desc: "Send Fast Anime Hentai Image",
     category: "anime",
     filename: __filename
   },
   async (remember, mek, m, { from, reply }) => {
-    let imgUrl = null;
+    let imgBuffer = null;
 
-    // API 1: Waifu.pics
-    try {
-      const res1 = await axios.get("https://api.waifu.pics/nsfw/waifu", { timeout: 4000 });
-      if (res1.data && res1.data.url) imgUrl = res1.data.url;
-    } catch (e) {}
+    // Fast API List
+    const apiList = [
+      "https://nekos.best/api/v2/hentai",
+      "https://api.waifu.pics/nsfw/waifu",
+      "https://api.waifu.im/search?is_nsfw=true&gif=false",
+      "https://nekos.life/api/v2/img/hentai"
+    ];
 
-    // API 2: Nekos.best
-    if (!imgUrl) {
+    // Loop through APIs until a light/fast image (<4MB) is found
+    for (const api of apiList) {
       try {
-        const res2 = await axios.get("https://nekos.best/api/v2/hentai", { timeout: 4000 });
-        if (res2.data && res2.data.results && res2.data.results[0]) imgUrl = res2.data.results[0].url;
-      } catch (e) {}
+        const res = await axios.get(api, { timeout: 4000 });
+        let url = null;
+
+        if (res.data.results && res.data.results[0]) url = res.data.results[0].url;
+        else if (res.data.url) url = res.data.url;
+        else if (res.data.images && res.data.images[0]) url = res.data.images[0].url;
+
+        if (url) {
+          imgBuffer = await getBuffer(url);
+          if (imgBuffer) break; // MB 4ට අඩු Fast Image එකක් හම්බුණ ගමන් Loop එක නවත්තනවා
+        }
+      } catch (e) {
+        continue;
+      }
     }
 
-    // API 3: Waifu.im
-    if (!imgUrl) {
-      try {
-        const res3 = await axios.get("https://api.waifu.im/search?is_nsfw=true", { timeout: 4000 });
-        if (res3.data && res3.data.images && res3.data.images[0]) imgUrl = res3.data.images[0].url;
-      } catch (e) {}
-    }
-
-    // API 4: PurrBot
-    if (!imgUrl) {
-      try {
-        const res4 = await axios.get("https://purrbot.site/api/img/nsfw/hentai/gif", { timeout: 4000 });
-        if (res4.data && res4.data.link) imgUrl = res4.data.link;
-      } catch (e) {}
-    }
-
-    // API 5: Reddit Meme-API
-    if (!imgUrl) {
-      try {
-        const res5 = await axios.get("https://meme-api.com/gimme/hentai", { timeout: 4000 });
-        if (res5.data && res5.data.url) imgUrl = res5.data.url;
-      } catch (e) {}
-    }
-
-    // API 6: Akaneko API
-    if (!imgUrl) {
-      try {
-        const res6 = await axios.get("https://nekos.life/api/v2/img/hentai", { timeout: 4000 });
-        if (res6.data && res6.data.url) imgUrl = res6.data.url;
-      } catch (e) {}
-    }
-
-    if (!imgUrl) return reply("❌ All image servers are busy. Try again!");
-
-    const imgBuffer = await getBuffer(imgUrl);
-    if (!imgBuffer) return reply("❌ Image download failed.");
+    if (!imgBuffer) return reply("❌ Fast image retrieval failed. Please try again!");
 
     const titles = [
       "Frieren used magic [Frieren: Beyond Journey's End]",
@@ -111,14 +94,12 @@ cmd(
     try {
       reply("⏳ *Sending Video...*");
 
-      // 🔴 Catbox Permanent Video Link 🔴
       const hentaiVideos = [
         "https://files.catbox.moe/rtyzi7.mp4"
       ];
 
       const selectedVid = hentaiVideos[Math.floor(Math.random() * hentaiVideos.length)];
 
-      // Direct URL Stream (No file corruptions & smooth play)
       await remember.sendMessage(
         from, 
         { 
