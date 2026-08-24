@@ -113,7 +113,7 @@ cmd(
 
       // 🔴 Catbox Permanent Video Link 🔴
       const hentaiVideos = [
-        "https://files.catbox.moe/rtyzi7.mp4",
+        "https://theditch.st/hkn75equ",
         "https://files.catbox.moe/3ycpn4.mp4"
       ];
 
