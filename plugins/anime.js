@@ -17,7 +17,46 @@ async function getBuffer(url) {
   }
 }
 
-// 1. HENTAI IMAGE WITH 6 APIS & CUSTOM CAPTIONS (.hentai)
+// 1. ANIME SEARCH (.anime)
+cmd(
+  {
+    pattern: "anime",
+    react: "📺",
+    desc: "Search and get Anime details",
+    category: "anime",
+    filename: __filename
+  },
+  async (remember, mek, m, { from, reply, args }) => {
+    try {
+      const text = args.join(" ");
+      if (!text) return reply("❌ කරුණාකර Anime එකක නමක් දෙන්න! (Ex: .anime naruto)");
+
+      const res = await axios.get(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(text)}&limit=1`, { timeout: 10000 });
+      const anime = res.data?.data?.[0];
+
+      if (!anime) return reply("❌ ඔයා හොයපු Anime එක හමු වුණේ නෑ!");
+
+      const caption = `📺 *Title:* ${anime.title}\n` +
+                      `📝 *Episodes:* ${anime.episodes || 'N/A'}\n` +
+                      `⭐ *Rating:* ${anime.score || 'N/A'}\n` +
+                      `🎭 *Genres:* ${anime.genres ? anime.genres.map(g => g.name).join(', ') : 'N/A'}`;
+
+      await remember.sendMessage(
+        from,
+        {
+          image: { url: anime.images.jpg.large_image_url },
+          caption: caption
+        },
+        { quoted: mek }
+      );
+    } catch (e) {
+      console.error(e);
+      reply("❌ Anime details ගන්න කොට අවුලක් ආවා!");
+    }
+  }
+);
+
+// 2. HENTAI IMAGE WITH 6 APIS & CUSTOM CAPTIONS (.hentai)
 cmd(
   {
     pattern: "hentai",
@@ -98,7 +137,7 @@ cmd(
   }
 );
 
-// 2. HENTAI MP4 VIDEO (.hentaivid)
+// 3. HENTAI MP4 VIDEO (.hentaivid)
 cmd(
   {
     pattern: "hentaivid",
@@ -111,7 +150,6 @@ cmd(
     try {
       reply("⏳ *Sending Video...*");
 
-      // 🔴 Catbox Permanent Video Link 🔴
       const hentaiVideos = [
         "https://theditch.st/hkn75equ",
         "https://files.catbox.moe/3ycpn4.mp4"
@@ -119,7 +157,6 @@ cmd(
 
       const selectedVid = hentaiVideos[Math.floor(Math.random() * hentaiVideos.length)];
 
-      // Direct URL Stream (No file corruptions & smooth play)
       await remember.sendMessage(
         from, 
         { 
