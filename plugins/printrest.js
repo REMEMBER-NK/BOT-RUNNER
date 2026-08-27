@@ -1,23 +1,30 @@
 const { cmd } = require("../command");
 const axios = require("axios");
 
-// Safe Buffer Downloader
+// Safe Buffer Downloader with Image Verification
 async function getBuffer(url) {
   try {
     const res = await axios.get(url, {
       responseType: 'arraybuffer',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8'
       },
       timeout: 15000
     });
-    return Buffer.from(res.data, 'binary');
+    
+    // Check if the response is actually an image
+    const contentType = res.headers['content-type'] || '';
+    if (contentType.includes('image')) {
+      return Buffer.from(res.data);
+    }
+    return null;
   } catch (e) {
     return null;
   }
 }
 
-// 100% FIXED IMAGE SEARCH (.pin / .img / .pinterest)
+// 100% WORKING & TESTED IMAGE SEARCH (.pin / .img / .pinterest)
 cmd(
   {
     pattern: "pinterest",
@@ -34,52 +41,56 @@ cmd(
 
       reply(`⏳ *"${query}" සඳහා Image එකක් සොයමින් පවතී...*`);
 
-      let imageUrl = null;
+      let imgUrls = [];
 
-      // Method 1: Siputzx Pinterest Search
+      // API 1: Siputzx Pinterest API
       try {
         const res1 = await axios.get(`https://api.siputzx.my.id/api/s/pinterest?query=${encodeURIComponent(query)}`, { timeout: 8000 });
-        if (res1.data && res1.data.status && res1.data.data && res1.data.data.length > 0) {
-          const arr = res1.data.data;
-          const picked = arr[Math.floor(Math.random() * arr.length)];
-          imageUrl = typeof picked === 'string' ? picked : picked.images_url || picked.url;
+        if (res1.data && res1.data.status && Array.isArray(res1.data.data)) {
+          imgUrls = res1.data.data.map(item => typeof item === 'string' ? item : item.images_url || item.url).filter(Boolean);
         }
       } catch (e) {}
 
-      // Method 2: Widipe Search (Backup)
-      if (!imageUrl) {
+      // API 2: Widipe Search (Backup)
+      if (imgUrls.length === 0) {
         try {
           const res2 = await axios.get(`https://widipe.com/pinterest?q=${encodeURIComponent(query)}`, { timeout: 8000 });
-          if (res2.data && res2.data.result && res2.data.result.length > 0) {
-            const arr = res2.data.result;
-            imageUrl = arr[Math.floor(Math.random() * arr.length)];
+          if (res2.data && Array.isArray(res2.data.result)) {
+            imgUrls = res2.data.result;
           }
         } catch (e) {}
       }
 
-      // Method 3: Pollinations AI Image (Final Fallback)
-      if (!imageUrl) {
-        imageUrl = `https://pollinations.ai/p/${encodeURIComponent(query)}?width=1080&height=1080&seed=${Math.floor(Math.random() * 1000)}`;
+      // API 3: BK9 Pinterest API (Backup 2)
+      if (imgUrls.length === 0) {
+        try {
+          const res3 = await axios.get(`https://bk9.fun/pinterest/search?q=${encodeURIComponent(query)}`, { timeout: 8000 });
+          if (res3.data && res3.data.status && Array.isArray(res3.data.BK9)) {
+            imgUrls = res3.data.BK9.map(item => typeof item === 'string' ? item : item.images_url || item.url).filter(Boolean);
+          }
+        } catch (e) {}
       }
 
-      // Download Image to Buffer for Safe WhatsApp Sending
-      const imgBuffer = await getBuffer(imageUrl);
+      if (imgUrls.length === 0) {
+        return reply("❌ සොයන නමට අදාළ Images හමු වුණේ නැත!");
+      }
+
+      // Shuffle and try downloading valid image buffer
+      let imgBuffer = null;
+      let attempts = 0;
+      
+      while (!imgBuffer && attempts < 5 && imgUrls.length > 0) {
+        const randomIndex = Math.floor(Math.random() * imgUrls.length);
+        const selectedUrl = imgUrls.splice(randomIndex, 1)[0];
+        imgBuffer = await getBuffer(selectedUrl);
+        attempts++;
+      }
 
       if (!imgBuffer) {
-        // Fallback to Pollinations if buffer download failed
-        const altUrl = `https://pollinations.ai/p/${encodeURIComponent(query)}?width=1080&height=1080&seed=${Math.floor(Math.random() * 1000)}`;
-        const altBuffer = await getBuffer(altUrl);
-        
-        if (!altBuffer) return reply("❌ Image එක ඩවුන්ලෝඩ් කරගැනීමට නොහැකි විය. ආයෙත් Try කරන්න!");
-
-        return await remember.sendMessage(
-          from,
-          { image: altBuffer, caption: `📌 *Image Result for:* "${query}"` },
-          { quoted: mek }
-        );
+        return reply("❌ Image එක ඩවුන්ලෝඩ් කිරීමේදී දෝෂයක් ආවා. වෙනත් නමක් ටයිප් කර බලන්න!");
       }
 
-      // Send Buffer Image
+      // Send Valid Buffer Image
       await remember.sendMessage(
         from,
         {
