@@ -1,85 +1,60 @@
 const { cmd } = require("../command");
 const axios = require("axios");
 
-// PINTEREST DOWNLOADER (.pinterest / .pin)
+// PINTEREST IMAGE SEARCH (.pinterest <text>)
 cmd(
   {
     pattern: "pinterest",
-    alias: ["pin", "pindl"],
+    alias: ["pin", "pins"],
     react: "📌",
-    desc: "Download Pinterest Image or Video",
+    desc: "Search and download images from Pinterest",
     category: "download",
     filename: __filename
   },
   async (remember, mek, m, { from, reply, args }) => {
     try {
-      let q = args.join(" ");
-      if (!q) return reply("❌ කරුණාකර Pinterest Link එකක් ලබාදෙන්න!\n\nEx: `.pin https://pin.it/xxx` හෝ `.pin https://www.pinterest.com/pin/xxx`");
+      const query = args.join(" ");
+      if (!query) return reply("❌ කරුණාකර සෙවිය යුතු නම ලබාදෙන්න!\n\nEx: `.pin naruto hd wallpaper`");
 
-      // Extract URL using Regex (Link එක විතරක් වෙන් කරගැනීමට)
-      const urlMatch = q.match(/https?:\/\/[^\s]+/);
-      if (!urlMatch) return reply("❌ නිවැරදි Link එකක් ඇතුළත් කරන්න!");
-      let cleanUrl = urlMatch[0];
+      reply(`⏳ *"${query}" සඳහා Pinterest හි සෙවුම් කරමින් පවතී...*`);
 
-      // Redirect Links (pin.it) Direct Link එකට හරවා ගැනීම
-      if (cleanUrl.includes("pin.it")) {
-        try {
-          const redirectRes = await axios.get(cleanUrl, { maxRedirects: 5 });
-          cleanUrl = redirectRes.request.res.responseUrl || cleanUrl;
-        } catch (err) {
-          // If axios redirect fails, proceed with original link
-        }
-      }
+      let imageUrl = null;
 
-      if (!cleanUrl.includes("pinterest.com")) {
-        return reply("❌ මෙය වලංගු Pinterest Link එකක් නොවේ!");
-      }
-
-      reply("⏳ *Pinterest Media එක Download වෙමින් පවතී...*");
-
-      // Multi-API Fallback (1st API)
-      let mediaUrl = null;
-      let isVideo = false;
-
+      // Primary Search API
       try {
-        const api1 = await axios.get(`https://api.guruapi.tech/api/pinterest?url=${encodeURIComponent(cleanUrl)}`, { timeout: 12000 });
-        if (api1.data && api1.data.result) {
-          mediaUrl = api1.data.result.url || api1.data.result;
-          isVideo = api1.data.result.type === 'video' || (typeof mediaUrl === 'string' && mediaUrl.includes('.mp4'));
+        const res1 = await axios.get(`https://api.guruapi.tech/api/pinterest?query=${encodeURIComponent(query)}`, { timeout: 12000 });
+        if (res1.data && res1.data.result && res1.data.result.length > 0) {
+          // Random image from top results
+          const results = res1.data.result;
+          imageUrl = results[Math.floor(Math.random() * results.length)];
         }
       } catch (e) {}
 
-      // Backup API (2nd API if 1st fails)
-      if (!mediaUrl) {
+      // Backup Search API (If 1st API fails)
+      if (!imageUrl) {
         try {
-          const api2 = await axios.get(`https://api.vyturex.com/pinterest?url=${encodeURIComponent(cleanUrl)}`, { timeout: 12000 });
-          if (api2.data && api2.data.url) {
-            mediaUrl = api2.data.url;
-            isVideo = mediaUrl.includes('.mp4');
+          const res2 = await axios.get(`https://api.vyturex.com/pinterest?query=${encodeURIComponent(query)}`, { timeout: 12000 });
+          if (res2.data && Array.isArray(res2.data) && res2.data.length > 0) {
+            imageUrl = res2.data[Math.floor(Math.random() * res2.data.length)];
           }
         } catch (e) {}
       }
 
-      if (!mediaUrl) return reply("❌ Media එක සොයාගැනීමට නොහැකි විය. Server එක හිරවී ඇත!");
+      if (!imageUrl) return reply("❌ ඔයා හොයපු නමට අදාළ Images හමු වුණේ නැත. වෙනත් නමක් ටයිප් කරන්න!");
 
-      // Send Video or Image
-      if (isVideo) {
-        await remember.sendMessage(
-          from,
-          { video: { url: mediaUrl }, caption: "📌 *Pinterest Video*", mimetype: "video/mp4" },
-          { quoted: mek }
-        );
-      } else {
-        await remember.sendMessage(
-          from,
-          { image: { url: mediaUrl }, caption: "📌 *Pinterest Image*" },
-          { quoted: mek }
-        );
-      }
+      // Send Image
+      await remember.sendMessage(
+        from,
+        {
+          image: { url: imageUrl },
+          caption: `📌 *Pinterest Search:* "${query}"`
+        },
+        { quoted: mek }
+      );
 
     } catch (e) {
       console.error(e);
-      reply(`❌ Error: Invalid URL or Server Issue!`);
+      reply("❌ Pinterest Search කිරීමේදී දෝෂයක් සිදු විය!");
     }
   }
 );
