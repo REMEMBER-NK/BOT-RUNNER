@@ -1,13 +1,13 @@
 const { cmd } = require("../command");
 const axios = require("axios");
 
-// NO-NPM EXTRA PACKAGES IMAGE SEARCH (.pin / .img)
+// RELIABLE IMAGE SEARCH (.pin / .img)
 cmd(
   {
     pattern: "pinterest",
     alias: ["pin", "pins", "img", "image"],
     react: "📌",
-    desc: "Search and download HD images without extra npm packages",
+    desc: "Search and download HD images directly",
     category: "download",
     filename: __filename
   },
@@ -18,36 +18,40 @@ cmd(
 
       reply(`⏳ *"${query}" සඳහා Image එකක් සොයමින් පවතී...*`);
 
-      // 1. Get Token from DuckDuckGo
-      const tokenRes = await axios.get(`https://duckduckgo.com/?q=${encodeURIComponent(query)}`, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      let imageUrl = null;
+
+      // Method 1: Source Unsplash Random API (Direct & Ultra Fast)
+      try {
+        const res = await axios.get(`https://source.unsplash.com/1600x900/?${encodeURIComponent(query)}`, {
+          timeout: 10000,
+          maxRedirects: 5
+        });
+        if (res.request && res.request.res && res.request.res.responseUrl) {
+          imageUrl = res.request.res.responseUrl;
         }
-      });
+      } catch (e) {}
 
-      const vqdMatch = tokenRes.data.match(/vqd=([\d-]+)/);
-      if (!vqdMatch) return reply("❌ Search token එක ගන්න බැරි වුණා!");
-      const vqd = vqdMatch[1];
-
-      // 2. Fetch Images Data
-      const imgRes = await axios.get(`https://duckduckgo.com/i.js?l=us-en&o=json&q=${encodeURIComponent(query)}&vqd=${vqd}`, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
-      });
-
-      const results = imgRes.data.results;
-      if (!results || results.length === 0) {
-        return reply("❌ Image එකක් සොයාගැනීමට නොහැකි විය!");
+      // Method 2: Fallback Image Search API (If Method 1 gets rate limited)
+      if (!imageUrl) {
+        try {
+          const res2 = await axios.get(`https://api.unsplash.com/photos/random?query=${encodeURIComponent(query)}&client_id=b42f317208d0e5b742e680e008427042a92a953974628d447f52a6515b076b36`, {
+            timeout: 10000
+          });
+          if (res2.data && res2.data.urls && res2.data.urls.regular) {
+            imageUrl = res2.data.urls.regular;
+          }
+        } catch (e) {}
       }
 
-      // Pick a random HD image from top results
-      const randomImg = results[Math.floor(Math.random() * Math.min(15, results.length))].image;
+      if (!imageUrl) {
+        return reply("❌ Image එක සොයාගැනීමට නොහැකි විය. වෙනත් නමක් ටයිප් කරන්න!");
+      }
 
+      // Send Image
       await remember.sendMessage(
         from,
         {
-          image: { url: randomImg },
+          image: { url: imageUrl },
           caption: `📌 *Image Result for:* "${query}"`
         },
         { quoted: mek }
@@ -55,7 +59,7 @@ cmd(
 
     } catch (e) {
       console.error(e);
-      reply("❌ Image එක ගන්න ගිය වෙලාවේ දෝෂයක් ආවා. ආයෙත් Try කරන්න!");
+      reply("❌ Image එක සොයාගැනීමේදී දෝෂයක් සිදු විය!");
     }
   }
 );
