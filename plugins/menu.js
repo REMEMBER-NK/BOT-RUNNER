@@ -70,26 +70,31 @@ cmd(
 
 
 | *MAIN COMMANDS* |
-    ♠️.alive
-    ♠️.menu
-    ♠️.ai <text>
-    ♠️.system
-    ♠️.owner
+    ​♦️.alive
+    ​♦️.menu
+    ​♦️.ai <text>
+    ​♦️.system
+    ​♦️.owner
 | *DOWNLOAD COMMANDS* |
-    ♠️.song <text>
-    ♠️.video <text>
-    ♠️.fb <link>
-    ♠️.tt <link>
+    ​♦️.song <text>
+    ​♦️.video <text>
+    ​♦️.fb <link>
+    ​♦️.tt <link>
 | *GROUP COMMANDS* |
 ${menu.group}
 | *OWNER COMMANDS* |
-    ♠️.restart
-    ♠️.update
+    ​♦️.restart
+    ​♦️.update
 | *CONVERT COMMANDS* |
-    ♠️.sticker <reply img>
-    ♠️.img <reply sticker>
-    ♠️.tr <lang><text>
-    ♠️.tts <text>
+    ​♦️.sticker <reply img>
+    ​♦️.img <reply sticker>
+    ​♦️.tr <lang><text>
+    ​♦️.tts <text>
+| *GAME COMMANDS* |
+    ​♦️.future <text>
+    ​♦️.ttt
+| *ANIME COMMANDS* |
+    ♦️.anime <text>
     
 | *SEARCH COMMANDS* |
 ${menu.search}
