@@ -12,6 +12,11 @@ const activeRunningSessions = new Set();
 const processedMessages = new Set(); // Duplicate Messages Block කරන Cache එක
 let cachedVersion = null;
 
+// TAHANAM WACHANA (BAD WORDS LIST)
+const BAD_WORDS = [
+    "puka", "paka", "htt", "hukana", "huththa", "kari", "ponnaya", "hukapan", "hukano", "pakaya", "ponna", "hutho", "huththo"
+];
+
 // 1. Plugins Load කිරීම
 const events = require('./command');
 const pluginsDir = path.join(__dirname, 'plugins');
@@ -69,19 +74,22 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
         }
     });
 
-    // Command Handler
+    // Message Handler & Anti-Bad Word Engine
     rememberBot.ev.on('messages.upsert', async (chatUpdate) => {
         try {
             const mek = chatUpdate.messages[0];
             if (!mek || !mek.message) return;
 
-            // Duplicate Message Check (එකම Message එක දෙපාරක් Process වෙන එක නතර කිරීම)
+            // Duplicate Message Check
             const msgId = mek.key.id;
             if (processedMessages.has(msgId)) return;
             processedMessages.add(msgId);
-            setTimeout(() => processedMessages.delete(msgId), 60000); // විනාඩියකින් Memory එකෙන් අයින් කිරීම
+            setTimeout(() => processedMessages.delete(msgId), 60000);
 
             const from = mek.key.remoteJid;
+            const isGroup = from.endsWith('@g.us');
+            const sender = isGroup ? (mek.key.participant || mek.key.remoteJid) : mek.key.remoteJid;
+            
             const type = Object.keys(mek.message)[0];
             const msg = type === 'viewOnceMessage' ? mek.message.viewOnceMessage.message : mek.message;
             
@@ -91,7 +99,54 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
                          msg.videoMessage?.caption || '';
 
             const pushname = mek.pushName || "User";
+            const reply = (text) => rememberBot.sendMessage(from, { text }, { quoted: mek });
 
+            // Group Metadata and Admin Status Check
+            let isBotAdmin = false;
+            let isGroupAdmin = false;
+            if (isGroup) {
+                try {
+                    const groupMetadata = await rememberBot.groupMetadata(from);
+                    const participants = groupMetadata.participants || [];
+                    
+                    const botNumber = rememberBot.user.id.split(':')[0] + '@s.whatsapp.net';
+                    const botAdminObj = participants.find(p => p.id === botNumber);
+                    isBotAdmin = !!botAdminObj?.admin;
+
+                    const senderObj = participants.find(p => p.id === sender);
+                    isGroupAdmin = !!senderObj?.admin;
+                } catch (e) {
+                    isBotAdmin = false;
+                    isGroupAdmin = false;
+                }
+            }
+
+            // =======================================================
+            // 🚨 DIRECT ANTI BAD-WORD FILTER (DIRECTLY IN INDEX.JS)
+            // =======================================================
+            if (isGroup && body) {
+                const containsBadWord = BAD_WORDS.some(word => body.toLowerCase().includes(word));
+
+                if (containsBadWord) {
+                    try {
+                        // 1. Delete Bad Word Message
+                        await rememberBot.sendMessage(from, { delete: mek.key });
+
+                        // 2. Send Warning
+                        const username = `@${sender.split('@')[0]}`;
+                        await rememberBot.sendMessage(from, {
+                            text: `⚠️ *${username} කුණුහරප භාවිතය තහනම්! ඔබේ පණිවිඩය ඉවත් කරන ලදී.*`,
+                            mentions: [sender]
+                        });
+                        return; // Stop processing commands if bad word detected
+                    } catch (err) {
+                        console.log("Anti-Bad Delete Error (Make sure Bot is Admin):", err.message);
+                    }
+                }
+            }
+            // =======================================================
+
+            // Command Processing
             if (body.startsWith('.')) {
                 const args = body.trim().split(/ +/).slice(1);
                 const commandName = body.slice(1).split(" ")[0].toLowerCase();
@@ -102,7 +157,6 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
                 );
 
                 if (cmd) {
-                    const reply = (text) => rememberBot.sendMessage(from, { text }, { quoted: mek });
                     cmd.function(rememberBot, mek, mek, { 
                         from, 
                         reply, 
@@ -112,10 +166,30 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
                         pushname, 
                         quoted: mek,
                         isCmd: true,
-                        command: commandName
+                        command: commandName,
+                        isGroup,
+                        sender,
+                        isBotAdmin,
+                        isGroupAdmin
                     });
                 }
+            } else {
+                // Trigger 'on body' events in plugins if any
+                events.commands.forEach((cmd) => {
+                    if (cmd.on === "body") {
+                        cmd.function(rememberBot, mek, mek, {
+                            from,
+                            reply,
+                            body,
+                            isGroup,
+                            sender,
+                            isBotAdmin,
+                            isGroupAdmin
+                        });
+                    }
+                });
             }
+
         } catch (e) {
             console.log(`Message Handler Error [${sessionId}]:`, e);
         }
