@@ -29,9 +29,10 @@
     "@eslint/object-schema": "^3.0.5",
     "mongoose": "^8.0.0",
     "eslint": "^10.8.1",
-    "@tensorflow/tfjs-node": "^4.22.0",
-    "canvas": "^2.11.2",
-    "nsfwjs": "^4.2.1"
+    "axios": "^1.6.0",
+    "form-data": "^4.0.0"
+  }
+
     }
   }
 }
