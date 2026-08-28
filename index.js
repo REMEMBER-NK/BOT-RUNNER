@@ -12,7 +12,7 @@ const activeRunningSessions = new Set();
 const processedMessages = new Set();
 let cachedVersion = null;
 
-// TAHANAM WACHANA & MEDIA KEYWORDS (NSFW / BAD WORDS)
+// TAHANAM WACHANA & NSFW KEYWORDS
 const BAD_WORDS = [
     "puka", "paka", "htt", "hukana", "huththa", "kari", "ponnaya", "hukapan", "hukano", "pakaya", "ponna", "hutho", "huththo",
     "sex", "xnxx", "porn", "nude", "naked", "boobs", "bitch", "adult", "xxx", "fuck", "pussy", "dick"
@@ -95,7 +95,6 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
             const type = Object.keys(mek.message)[0];
             const msg = type === 'viewOnceMessage' ? mek.message.viewOnceMessage.message : mek.message;
             
-            // Text, Captions, and File Name Fetching
             const body = msg.conversation || 
                          msg.extendedTextMessage?.text || 
                          msg.imageMessage?.caption || 
@@ -127,33 +126,17 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
             }
 
             // =======================================================
-            // 🚨 ADVANCED NSFW & BAD-WORD CONTENT FILTER (Text + Media)
+            // 🚨 ADVANCED Anti-Bad Word & Anti-NSFW System
             // =======================================================
-            if (isGroup) {
-                let isNsfwDetected = false;
-
-                // 1. Text හෝ Caption එකේ තහනම් වචන ඇත්දැයි බැලීම
-                if (body) {
-                    isNsfwDetected = BAD_WORDS.some(word => body.toLowerCase().includes(word));
-                }
-
-                // 2. View Once, Image, Video හෝ Sticker එකක් නම් ඒවාද Auto Check කිරීම
-                // (සමහර නරක පින්තූර/ස්ටිකර් වල Meta වල පවා NSFW නම වැටී තිබිය හැක)
-                if (type === 'imageMessage' || type === 'videoMessage' || type === 'stickerMessage' || type === 'viewOnceMessage') {
-                    // Botට Admin බලතල නැත්නම් Delete කිරීමට නොහැකි නිසා Admin චෙක් කරයි
-                    // මෙහිදී ඕනෑම Media එකක නමක් හෝ file details වල නරක වචනයක් ඇත්නම් අල්ලයි
-                    if (body && BAD_WORDS.some(word => body.toLowerCase().includes(word))) {
-                        isNsfwDetected = true;
-                    }
-                }
+            if (isGroup && body) {
+                const isNsfwDetected = BAD_WORDS.some(word => body.toLowerCase().includes(word));
 
                 if (isNsfwDetected) {
                     try {
-                        // Bot Admin කෙනෙක් නම් පමණක් Message එක Delete කළ හැක
                         if (isBotAdmin) {
                             await rememberBot.sendMessage(from, { delete: mek.key });
                         } else {
-                            await reply("⚠️ *NSFW පින්තූරයක්/පණිවිඩයක් හමු විය! මාව Group Admin කෙනෙක් ලෙස පත් කරන්න එවිට මට එය මැකිය හැක.*");
+                            await reply("⚠️ *අසැබි / NSFW පණිවිඩයක් හමු විය! මාව Admin කළහොත් පමණක් එය මකා දැමිය හැක.*");
                             return;
                         }
 
@@ -164,17 +147,17 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
 
                         if (currentWarns === 1) {
                             await rememberBot.sendMessage(from, { 
-                                text: `⚠️ *[ 1ST WARNING ]*\n━━━━━━━━━━━━━━━━━━━━\n👤 *User:* ${username}\n🚫 *Reason:* අසැබි (NSFW) පින්තූර හෝ වචන යැවීම තහනම්!\n📌 *Status:* Content Deleted!`, 
+                                text: `⚠️ *[ 1ST WARNING ]*\n━━━━━━━━━━━━━━━━━━━━\n👤 *User:* ${username}\n🚫 *Reason:* අසැබි වචන/NSFW භාවිතය!\n📌 *Status:* Deleted!`, 
                                 mentions: [sender] 
                             });
                         } else if (currentWarns === 2) {
                             await rememberBot.sendMessage(from, { 
-                                text: `🚨 *[ 2ND WARNING - FINAL ALERT ]*\n━━━━━━━━━━━━━━━━━━━━\n👤 *User:* ${username}\n⚠️ *තව එක් වරක් නීති කඩ කළහොත් Group එකෙන් ඉවත් කරනු ලැබේ!*`, 
+                                text: `🚨 *[ 2ND WARNING - FINAL ALERT ]*\n━━━━━━━━━━━━━━━━━━━━\n👤 *User:* ${username}\n⚠️ *තව 1 පාරක් කළහොත් Group එකෙන් Kick කරනු ලැබේ!*`, 
                                 mentions: [sender] 
                             });
                         } else if (currentWarns >= 3) {
                             await rememberBot.sendMessage(from, { 
-                                text: `🛑 *[ KICKED FROM GROUP ]*\n━━━━━━━━━━━━━━━━━━━━\n👤 *User:* ${username}\n✈️ *වවාර් 3ක් නීති කැඩූ බැවින් ඉවත් කරන ලදී!*`, 
+                                text: `🛑 *[ KICKED FROM GROUP ]*\n━━━━━━━━━━━━━━━━━━━━\n👤 *User:* ${username}\n✈️ *නීති 3 පාරක් කැඩූ නිසා ඉවත් කරන ලදී!*`, 
                                 mentions: [sender] 
                             });
                             if (isBotAdmin) {
@@ -262,8 +245,8 @@ async function startAllBots() {
         await mongoose.connect(mongoUri);
         console.log("✅ Mongoose Connected Successfully!");
         
-        await groupMetadata = await checkForNewSessions(); // Safe Init
-        
+        await checkForNewSessions();
+
         setInterval(() => {
             checkForNewSessions();
         }, 15000);
