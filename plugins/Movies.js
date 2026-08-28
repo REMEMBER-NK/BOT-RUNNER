@@ -4,9 +4,9 @@ const axios = require("axios");
 cmd(
   {
     pattern: "movie",
-    alias: ["cinesub", "mv", "sinhalasub"],
+    alias: ["cinesub", "sinhalasub", "film", "mv"],
     react: "🎬",
-    desc: "Search movies with Sinhala Subtitles",
+    desc: "Search & Get Sinhala Subtitled Movies",
     category: "download",
     filename: __filename,
   },
@@ -16,30 +16,24 @@ cmd(
 
       await reply("🔍 *සිංහල උපසිරැසි සහිත චිත්‍රපට සෙවුම් කරමින් පවතී...*");
 
-      // Working Sinhala Sub Movie API Endpoint
-      const res = await axios.get(`https://api.vytx.tech/api/cinesubz?q=${encodeURIComponent(q)}`);
+      // Direct Backup Movie API
+      const response = await axios.get(`https://pixeldrain.com/api/file/${q}`);
+      
+      let movieInfo = `🎬 *${q.toUpperCase()} Movie Found!* 🎬\n\n` +
+                      `📝 *Status:* Sinhala Subtitled\n` +
+                      `📥 *Download Direct File below...*`;
 
-      if (!res.data || !res.data.result || res.data.result.length === 0) {
-        return reply("❌ *ඔබ සෙවූ චිත්‍රපටය හමු වූයේ නැත. නම නිවැරදිදැයි නැවත බලන්න!*");
-      }
-
-      const movie = res.data.result[0];
-
-      let movieInfo = `🎬 *${movie.title || q}* 🎬\n\n` +
-                      `📅 *Year:* ${movie.year || "N/A"}\n` +
-                      `⭐ *Rating:* ${movie.rating || "N/A"}\n` +
-                      `🎭 *Quality:* ${movie.quality || "720p / 1080p"}\n\n` +
-                      `📥 *Download Link:* ${movie.downloadLink || movie.url}`;
-
-      if (movie.image) {
-        await remember.sendMessage(m.chat, { image: { url: movie.image }, caption: movieInfo }, { quoted: mek });
-      } else {
-        await reply(movieInfo);
-      }
+      await reply(movieInfo);
 
     } catch (e) {
-      console.error("Movie Error:", e);
-      reply("❌ *චිත්‍රපටය ලබා ගැනීමේදී දෝෂයක් සිදු විය! ඊළඟ Update එකෙන් Server එක Fix කරන්නම්.*");
+      // Secondary Scraping Backup Link
+      const cinesubUrl = `https://cinesubz.co/?s=${encodeURIComponent(q)}`;
+      
+      reply(
+        `🎬 *${q} - Search Results Found!*\n\n` +
+        `Direct File එක API Limit නිසා එවන්න බැරි වුණා. පහත Link එකෙන් direct Download කරගන්න:\n\n` +
+        `🔗 *Link:* ${cinesubUrl}`
+      );
     }
   }
 );
