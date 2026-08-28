@@ -16,23 +16,33 @@ cmd(
         return reply("📌 *කරුණාකර චිත්‍රපටයේ නම ඇතුළත් කරන්න!*\n\n*උදා:* `.movie Joker`");
       }
 
-      await reply("🔍 *සිංහල උපසිරැසි සහිත චිත්‍රපට සෙවුම් කරමින් පවතී...*");
+      await reply("🔍 *චිත්‍රපටය සොයමින් පවතී, සුළු මොහොතක් රැඳී සිටින්න...*");
 
-      // Working Sinhala Sub Movie API
-      const res = await axios.get(`https://api.vytx.tech/api/cinesubz?q=${encodeURIComponent(q)}`);
+      // Direct Backup API for Sinhala Sub & Movies
+      const res = await axios.get(`https://api.dreaded.site/api/subscene?search=${encodeURIComponent(q)}`);
 
-      if (!res.data || !res.data.status || !res.data.result || res.data.result.length === 0) {
-        return reply("❌ *ඔබ සෙවූ චිත්‍රපටය හමු වූයේ නැත. නම නිවැරදිදැයි නැවත බලන්න!*");
+      if (!res.data || !res.data.result || res.data.result.length === 0) {
+        // Backup Secondary API Search
+        const res2 = await axios.get(`https://api.agatz.xyz/api/movie?q=${encodeURIComponent(q)}`);
+        
+        if (!res2.data || res2.data.status !== 200 || !res2.data.data) {
+          return reply("❌ *ඔබ සෙවූ චිත්‍රපටය හමු වූයේ නැත. නම නිවැරදිදැයි බලන්න!*");
+        }
+
+        const movieData = res2.data.data[0];
+        let info = `🎬 *${movieData.title || q.toUpperCase()}* 🎬\n\n` +
+                   `📝 *Description:* ${movieData.description || "N/A"}\n\n` +
+                   `📥 *Link:* ${movieData.link}`;
+
+        return reply(info);
       }
 
       const movie = res.data.result[0];
 
-      // Send Info Caption
-      let movieInfo = `🎬 *${movie.title}* 🎬\n\n` +
-                      `📅 *Released:* ${movie.year || "N/A"}\n` +
-                      `⭐ *Rating:* ${movie.rating || "N/A"}\n` +
-                      `🎭 *Quality:* ${movie.quality || "720p / 1080p"}\n\n` +
-                      `📥 *සිනමාපටය Document එකක් ලෙස ඩවුන්ලෝඩ් වෙමින් පවතී, සුළු මොහොතක් රැඳී සිටින්න...*`;
+      let movieInfo = `🎬 *${movie.title || q.toUpperCase()}* 🎬\n\n` +
+                      `📅 *Category:* ${movie.category || "Movie"}\n` +
+                      `📝 *Language:* ${movie.language || "Sinhala Sub"}\n\n` +
+                      `📥 *ඩවුන්ලෝඩ් එක සැකසෙමින් පවතී...*`;
 
       if (movie.image) {
         await remember.sendMessage(m.chat, { image: { url: movie.image }, caption: movieInfo }, { quoted: mek });
@@ -40,27 +50,23 @@ cmd(
         await reply(movieInfo);
       }
 
-      // Download Movie File Direct to WhatsApp
-      const downloadUrl = movie.dl_link || movie.downloadLink;
-
-      if (downloadUrl) {
+      // Download Document / Video File
+      if (movie.url || movie.download) {
         await remember.sendMessage(
           m.chat,
           {
-            document: { url: downloadUrl },
+            document: { url: movie.url || movie.download },
             mimetype: "video/mp4",
-            fileName: `${movie.title} (Sinhala Sub).mp4`,
-            caption: `🎬 *${movie.title}*\n📝 *Sinhala Subtitles Included!*`
+            fileName: `${movie.title || q}.mp4`,
+            caption: `🎬 *${movie.title || q}*\n📝 *REMEMBER BOT Movie Downloader*`
           },
           { quoted: mek }
         );
-      } else {
-        reply(`🎬 *${movie.title}* හමු වූ අතර Direct Link එක ලබා ගැනීමට නොහැකි විය.\n🔗 *Link:* ${movie.url}`);
       }
 
     } catch (e) {
       console.error("Movie Download Error:", e);
-      reply("❌ *චිත්‍රපටය සොයා ගැනීමට නොහැකි විය. වෙනත් නමකින් උත්සාහ කරන්න!*");
+      reply("❌ *API Server Error! වෙනත් චිත්‍රපටයක නමක් දී උත්සාහ කරන්න.*");
     }
   }
 );
