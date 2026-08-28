@@ -1,79 +1,36 @@
 const { cmd } = require("../command");
-const { downloadContentFromMessage } = require("@whiskeysockets/baileys");
-const axios = require("axios");
-const FormData = require("form-data");
 
-// 1. TAHANAM WACHANA (BAD WORDS LIST)
+// TAHANAM WACHANA LIST
 const BAD_WORDS = [
   "puka", "paka", "htt", "hukana", "huththa", "kari", "ponnaya", "hukapan", "hukano", "pakaya", "ponna", "hutho", "huththo"
 ];
 
-// User Warnings Tracker (In-Memory)
 const userWarnings = new Map();
 
 cmd(
   {
-    on: "body", // Monitor all incoming messages
-    desc: "Auto filter bad words and adult content",
+    on: "body",
+    desc: "Auto delete bad words & warning system",
     category: "group",
     filename: __filename,
   },
   async (remember, mek, m, { isGroup, sender }) => {
     try {
-      if (!isGroup) return; // Group වලට විතරයි
-      if (m.key.fromMe) return; // Bot ගේම Message වලට වැඩ කරන්නේ නෑ
+      if (!isGroup) return;
 
-      const from = m.chat;
-      let isViolated = false;
-      let violationReason = "";
-
-      // --- A. BAD WORDS FILTER (TEXT) ---
-      // Message එකේ කොතැන තිබුණත් Text එක හරියටම ගන්නවා
-      let text = m.text || m.body || m.message?.conversation || m.message?.extendedTextMessage?.text || m.message?.imageMessage?.caption || "";
+      let text = m.text || m.body || m.message?.conversation || m.message?.extendedTextMessage?.text || "";
       text = text.toLowerCase();
 
       const hasBadWord = BAD_WORDS.some((word) => text.includes(word));
+
       if (hasBadWord) {
-        isViolated = true;
-        violationReason = "කුණුහරප / අසැබි වචන භාවිතය";
-      }
+        const from = m.chat;
 
-      // --- B. 18+ ADULT / NSFW IMAGE FILTER ---
-      const messageType = Object.keys(m.message || {})[0];
-      if (!isViolated && messageType === "imageMessage") {
-        try {
-          const stream = await downloadContentFromMessage(m.message.imageMessage, "image");
-          let buffer = Buffer.from([]);
-          for await (const chunk of stream) {
-            buffer = Buffer.concat([buffer, chunk]);
-          }
-
-          const formData = new FormData();
-          formData.append("media", buffer, { filename: "image.jpg" });
-          formData.append("models", "nudity-2.0");
-          formData.append("api_user", "YOUR_SIGHTENGINE_API_USER");
-          formData.append("api_secret", "YOUR_SIGHTENGINE_API_SECRET");
-
-          const res = await axios.post("https://api.sightengine.com/1.0/check.json", formData, {
-            headers: formData.getHeaders(),
-          });
-
-          if (res.data && res.data.nudity && res.data.nudity.sexual_activity > 0.5) {
-            isViolated = true;
-            violationReason = "18+ අසැබි පින්තූර යොමු කිරීම";
-          }
-        } catch (e) {
-          // API Keys නැත්නම් Skip වෙනවා
-        }
-      }
-
-      // --- VIOLATION HANDLING & WARNING SYSTEM ---
-      if (isViolated) {
-        // 1. Instantly Delete the Message
+        // 1. Delete Message
         try {
           await remember.sendMessage(from, { delete: m.key });
-        } catch (err) {
-          return remember.sendMessage(from, { text: "⚠️ *කුණුහරප Message එක Delete කිරීමට Bot ට Group Admin බලතල දෙන්න!*" });
+        } catch (e) {
+          console.log("Delete error:", e);
         }
 
         // 2. Count Warnings
@@ -82,55 +39,27 @@ cmd(
 
         const username = `@${sender.split("@")[0]}`;
 
-        // --- WARNING MESSAGES STYLES ---
         if (currentWarns === 1) {
-          const warn1Text = 
-`⚠️ *[ 1ST WARNING ]* ⚠️
-━━━━━━━━━━━━━━━━━━━━
-👤 *User:* ${username}
-🚫 *Reason:* ${violationReason}
-📌 *Status:* Message Deleted!
-
-💬 *සමූහය තුළ කුණුහරප හෝ අසැබි දේ භාවිතය තහනම්!*
-⚠️ *තව වාර 2ක් වැරදි කළහොත් සමූහයෙන් ඉවත් කරනු ලැබේ!*
-━━━━━━━━━━━━━━━━━━━━`;
-
-          await remember.sendMessage(from, { text: warn1Text, mentions: [sender] });
-
+          await remember.sendMessage(from, {
+            text: `⚠️ *[ 1ST WARNING ]*\n━━━━━━━━━━━━━━━━━━━━\n👤 *User:* ${username}\n🚫 *Reason:* කුණුහරප භාවිතය\n📌 *Status:* Message Deleted!\n\n💬 *සමූහය තුළ අසැබි වචන භාවිතය තහනම්!*`,
+            mentions: [sender],
+          });
         } else if (currentWarns === 2) {
-          const warn2Text = 
-`🚨 *[ 2ND WARNING - FINAL ALERT ]* 🚨
-━━━━━━━━━━━━━━━━━━━━
-👤 *User:* ${username}
-🚫 *Reason:* ${violationReason}
-📌 *Status:* Message Deleted!
-
-⚠️ *ඔබට හිමි අවසාන අවස්ථාව මෙයයි!*
-❌ *තව එක් වරක් වැරදි කළහොත් කිසිදු දැනුම්දීමකින් තොරව Auto Kick කරනු ලැබේ!*
-━━━━━━━━━━━━━━━━━━━━`;
-
-          await remember.sendMessage(from, { text: warn2Text, mentions: [sender] });
-
+          await remember.sendMessage(from, {
+            text: `🚨 *[ 2ND WARNING - FINAL ALERT ]*\n━━━━━━━━━━━━━━━━━━━━\n👤 *User:* ${username}\n⚠️ *තව එක් වරක් වැරදි කළහොත් Auto Kick කරනු ලැබේ!*`,
+            mentions: [sender],
+          });
         } else if (currentWarns >= 3) {
-          const kickText = 
-`🛑 *[ FINAL WARNING - KICKED ]* 🛑
-━━━━━━━━━━━━━━━━━━━━
-👤 *User:* ${username}
-🚫 *Reason:* වාර 3ක්ම Group නීති පද්ධතිය උල්ලංඝනය කිරීම!
-
-✈️ *සමූහයේ ආරක්ෂාව උදෙසා අදාළ සාමාජිකයාව Group එකෙන් ඉවත් කරන ලදී!*
-━━━━━━━━━━━━━━━━━━━━`;
-
-          // Kick User
+          await remember.sendMessage(from, {
+            text: `🛑 *[ FINAL WARNING - KICKED ]*\n━━━━━━━━━━━━━━━━━━━━\n👤 *User:* ${username}\n✈️ *වාර 3ක්ම නීති කඩ කළ නිසා Group එකෙන් ඉවත් කරන ලදී!*`,
+            mentions: [sender],
+          });
           await remember.groupParticipantsUpdate(from, [sender], "remove");
-          await remember.sendMessage(from, { text: kickText, mentions: [sender] });
-
-          // Reset Warnings
           userWarnings.delete(sender);
         }
       }
     } catch (e) {
-      console.error("Filter Error:", e);
+      console.error("AntiBad Error:", e);
     }
   }
 );
