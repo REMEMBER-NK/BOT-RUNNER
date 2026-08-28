@@ -18,7 +18,7 @@ cmd(
     category: "group",
     filename: __filename,
   },
-  async (remember, mek, m, { isGroup, isBotAdmin, sender }) => {
+  async (remember, mek, m, { isGroup, sender }) => {
     try {
       if (!isGroup) return; // Group වලට විතරයි
       if (m.key.fromMe) return; // Bot ගේම Message වලට වැඩ කරන්නේ නෑ
@@ -28,7 +28,8 @@ cmd(
       let violationReason = "";
 
       // --- A. BAD WORDS FILTER (TEXT) ---
-      let text = m.text || m.body || "";
+      // Message එකේ කොතැන තිබුණත් Text එක හරියටම ගන්නවා
+      let text = m.text || m.body || m.message?.conversation || m.message?.extendedTextMessage?.text || m.message?.imageMessage?.caption || "";
       text = text.toLowerCase();
 
       const hasBadWord = BAD_WORDS.some((word) => text.includes(word));
@@ -50,8 +51,8 @@ cmd(
           const formData = new FormData();
           formData.append("media", buffer, { filename: "image.jpg" });
           formData.append("models", "nudity-2.0");
-          formData.append("api_user", "YOUR_SIGHTENGINE_API_USER"); // Put your API User here
-          formData.append("api_secret", "YOUR_SIGHTENGINE_API_SECRET"); // Put your API Secret here
+          formData.append("api_user", "YOUR_SIGHTENGINE_API_USER");
+          formData.append("api_secret", "YOUR_SIGHTENGINE_API_SECRET");
 
           const res = await axios.post("https://api.sightengine.com/1.0/check.json", formData, {
             headers: formData.getHeaders(),
@@ -62,19 +63,18 @@ cmd(
             violationReason = "18+ අසැබි පින්තූර යොමු කිරීම";
           }
         } catch (e) {
-          // Sightengine API keys නැත්නම් Error එකක් නොදී Skip වෙනවා
+          // API Keys නැත්නම් Skip වෙනවා
         }
       }
 
       // --- VIOLATION HANDLING & WARNING SYSTEM ---
       if (isViolated) {
-        // Bot Admin නැත්නම් Delete කරන්න බැහැ
-        if (!isBotAdmin) {
-          return remember.sendMessage(from, { text: "⚠️ *කුණුහරප / NSFW Message එක Delete කිරීමට Bot ට Group Admin බලතල දෙන්න!*" });
+        // 1. Instantly Delete the Message
+        try {
+          await remember.sendMessage(from, { delete: m.key });
+        } catch (err) {
+          return remember.sendMessage(from, { text: "⚠️ *කුණුහරප Message එක Delete කිරීමට Bot ට Group Admin බලතල දෙන්න!*" });
         }
-
-        // 1. Instantly Delete the Violating Message
-        await remember.sendMessage(from, { delete: m.key });
 
         // 2. Count Warnings
         let currentWarns = (userWarnings.get(sender) || 0) + 1;
@@ -121,7 +121,7 @@ cmd(
 ✈️ *සමූහයේ ආරක්ෂාව උදෙසා අදාළ සාමාජිකයාව Group එකෙන් ඉවත් කරන ලදී!*
 ━━━━━━━━━━━━━━━━━━━━`;
 
-          // Kick User from Group
+          // Kick User
           await remember.groupParticipantsUpdate(from, [sender], "remove");
           await remember.sendMessage(from, { text: kickText, mentions: [sender] });
 
