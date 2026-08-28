@@ -17,6 +17,9 @@ const BAD_WORDS = [
     "puka", "paka", "htt", "hukana", "huththa", "kari", "ponnaya", "hukapan", "hukano", "pakaya", "ponna", "hutho", "huththo"
 ];
 
+// User Warnings Tracker (In-Memory)
+const userWarnings = new Map();
+
 // 1. Plugins Load කිරීම
 const events = require('./command');
 const pluginsDir = path.join(__dirname, 'plugins');
@@ -74,7 +77,7 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
         }
     });
 
-    // Message Handler & Anti-Bad Word Engine
+    // Message Handler & Warning System Engine
     rememberBot.ev.on('messages.upsert', async (chatUpdate) => {
         try {
             const mek = chatUpdate.messages[0];
@@ -101,7 +104,7 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
             const pushname = mek.pushName || "User";
             const reply = (text) => rememberBot.sendMessage(from, { text }, { quoted: mek });
 
-            // Group Metadata and Admin Status Check
+            // Group Metadata Check
             let isBotAdmin = false;
             let isGroupAdmin = false;
             if (isGroup) {
@@ -122,7 +125,7 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
             }
 
             // =======================================================
-            // 🚨 DIRECT ANTI BAD-WORD FILTER (DIRECTLY IN INDEX.JS)
+            // 🚨 BAD-WORD FILTER WITH 3-WARNING SYSTEM
             // =======================================================
             if (isGroup && body) {
                 const containsBadWord = BAD_WORDS.some(word => body.toLowerCase().includes(word));
@@ -132,15 +135,62 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
                         // 1. Delete Bad Word Message
                         await rememberBot.sendMessage(from, { delete: mek.key });
 
-                        // 2. Send Warning
+                        // 2. Count Warnings
+                        let currentWarns = (userWarnings.get(sender) || 0) + 1;
+                        userWarnings.set(sender, currentWarns);
+
                         const username = `@${sender.split('@')[0]}`;
-                        await rememberBot.sendMessage(from, {
-                            text: `⚠️ *${username} කුණුහරප භාවිතය තහනම්! ඔබේ පණිවිඩය ඉවත් කරන ලදී.*`,
-                            mentions: [sender]
-                        });
-                        return; // Stop processing commands if bad word detected
+
+                        // --- WARNING MESSAGES STYLES ---
+                        if (currentWarns === 1) {
+                            const warn1Text = 
+`⚠️ *[ 1ST WARNING ]* ⚠️
+━━━━━━━━━━━━━━━━━━━━
+👤 *User:* ${username}
+🚫 *Reason:* කුණුහරප / අසැබි වචන භාවිතය
+📌 *Status:* Message Deleted!
+
+💬 *සමූහය තුළ කුණුහරප භාවිතය තහනම්!*
+⚠️ *තව වාර 2ක් වැරදි කළහොත් සමූහයෙන් ඉවත් කරනු ලැබේ!*
+━━━━━━━━━━━━━━━━━━━━`;
+
+                            await rememberBot.sendMessage(from, { text: warn1Text, mentions: [sender] });
+
+                        } else if (currentWarns === 2) {
+                            const warn2Text = 
+`🚨 *[ 2ND WARNING - FINAL ALERT ]* 🚨
+━━━━━━━━━━━━━━━━━━━━
+👤 *User:* ${username}
+🚫 *Reason:* කුණුහරප / අසැබි වචන භාවිතය
+📌 *Status:* Message Deleted!
+
+⚠️ *ඔබට හිමි අවසාන අවස්ථාව මෙයයි!*
+❌ *තව එක් වරක් වැරදි කළහොත් කිසිදු දැනුම්දීමකින් තොරව Auto Kick කරනු ලැබේ!*
+━━━━━━━━━━━━━━━━━━━━`;
+
+                            await rememberBot.sendMessage(from, { text: warn2Text, mentions: [sender] });
+
+                        } else if (currentWarns >= 3) {
+                            const kickText = 
+`🛑 *[ FINAL WARNING - KICKED ]* 🛑
+━━━━━━━━━━━━━━━━━━━━
+👤 *User:* ${username}
+🚫 *Reason:* වාර 3ක්ම Group නීති පද්ධතිය උල්ලංඝනය කිරීම!
+
+✈️ *සමූහයේ ආරක්ෂාව උදෙසා අදාළ සාමාජිකයාව Group එකෙන් ඉවත් කරන ලදී!*
+━━━━━━━━━━━━━━━━━━━━`;
+
+                            // Kick User
+                            await rememberBot.groupParticipantsUpdate(from, [sender], "remove");
+                            await rememberBot.sendMessage(from, { text: kickText, mentions: [sender] });
+
+                            // Reset Warning Counter
+                            userWarnings.delete(sender);
+                        }
+
+                        return; // Stop processing command
                     } catch (err) {
-                        console.log("Anti-Bad Delete Error (Make sure Bot is Admin):", err.message);
+                        console.log("Anti-Bad Error:", err.message);
                     }
                 }
             }
@@ -173,21 +223,6 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
                         isGroupAdmin
                     });
                 }
-            } else {
-                // Trigger 'on body' events in plugins if any
-                events.commands.forEach((cmd) => {
-                    if (cmd.on === "body") {
-                        cmd.function(rememberBot, mek, mek, {
-                            from,
-                            reply,
-                            body,
-                            isGroup,
-                            sender,
-                            isBotAdmin,
-                            isGroupAdmin
-                        });
-                    }
-                });
             }
 
         } catch (e) {
