@@ -1,83 +1,90 @@
 const { cmd } = require("../command");
+const { downloadContentFromMessage } = require("@whiskeysockets/baileys");
 const axios = require("axios");
+const FormData = require("form-data");
 
 // 1. TAHANAM WACHANA (BAD WORDS LIST)
 const BAD_WORDS = [
   "puka", "paka", "htt", "hukana", "huththa", "kari", "ponnaya", "hukapan", "hukano", "pakaya", "ponna", "hutho", "huththo"
-  // තව වචන ඕන නම් මෙතනට එකතු කරගනින්
 ];
 
 // User Warnings Tracker (In-Memory)
 const userWarnings = new Map();
 
-// MESSAGE MONITORING EVENT
-remember.ev.on('messages.upsert', async (chatUpdate) => {
-  try {
-    const mek = chatUpdate.messages[0];
-    if (!mek || !mek.message || mek.key.fromMe) return;
+cmd(
+  {
+    on: "body", // Monitor all incoming messages
+    desc: "Auto filter bad words and adult content",
+    category: "group",
+    filename: __filename,
+  },
+  async (remember, mek, m, { isGroup, isBotAdmin, sender }) => {
+    try {
+      if (!isGroup) return; // Group වලට විතරයි
+      if (m.key.fromMe) return; // Bot ගේම Message වලට වැඩ කරන්නේ නෑ
 
-    const from = mek.key.remoteJid;
-    const isGroup = from.endsWith('@g.us');
-    if (!isGroup) return; // Group වලට විතරයි
+      const from = m.chat;
+      let isViolated = false;
+      let violationReason = "";
 
-    const sender = mek.key.participant || mek.key.remoteJid;
-    const messageType = Object.keys(mek.message)[0];
+      // --- A. BAD WORDS FILTER (TEXT) ---
+      let text = m.text || m.body || "";
+      text = text.toLowerCase();
 
-    let isViolated = false;
-    let violationReason = "";
+      const hasBadWord = BAD_WORDS.some((word) => text.includes(word));
+      if (hasBadWord) {
+        isViolated = true;
+        violationReason = "කුණුහරප / අසැබි වචන භාවිතය";
+      }
 
-    // --- A. BAD WORDS FILTER (TEXT) ---
-    let text = mek.message.conversation || mek.message.extendedTextMessage?.text || mek.message.imageMessage?.caption || "";
-    text = text.toLowerCase();
+      // --- B. 18+ ADULT / NSFW IMAGE FILTER ---
+      const messageType = Object.keys(m.message || {})[0];
+      if (!isViolated && messageType === "imageMessage") {
+        try {
+          const stream = await downloadContentFromMessage(m.message.imageMessage, "image");
+          let buffer = Buffer.from([]);
+          for await (const chunk of stream) {
+            buffer = Buffer.concat([buffer, chunk]);
+          }
 
-    const hasBadWord = BAD_WORDS.some(word => text.includes(word));
-    if (hasBadWord) {
-      isViolated = true;
-      violationReason = "කුණුහරප / අසැබි වචන භාවිතය";
-    }
+          const formData = new FormData();
+          formData.append("media", buffer, { filename: "image.jpg" });
+          formData.append("models", "nudity-2.0");
+          formData.append("api_user", "YOUR_SIGHTENGINE_API_USER"); // Put your API User here
+          formData.append("api_secret", "YOUR_SIGHTENGINE_API_SECRET"); // Put your API Secret here
 
-    // --- B. 18+ ADULT / NSFW IMAGE FILTER ---
-    if (!isViolated && messageType === 'imageMessage') {
-      try {
-        const stream = await downloadContentFromMessage(mek.message.imageMessage, 'image');
-        let buffer = Buffer.from([]);
-        for await (const chunk of stream) {
-          buffer = Buffer.concat([buffer, chunk]);
+          const res = await axios.post("https://api.sightengine.com/1.0/check.json", formData, {
+            headers: formData.getHeaders(),
+          });
+
+          if (res.data && res.data.nudity && res.data.nudity.sexual_activity > 0.5) {
+            isViolated = true;
+            violationReason = "18+ අසැබි පින්තූර යොමු කිරීම";
+          }
+        } catch (e) {
+          // Sightengine API keys නැත්නම් Error එකක් නොදී Skip වෙනවා
+        }
+      }
+
+      // --- VIOLATION HANDLING & WARNING SYSTEM ---
+      if (isViolated) {
+        // Bot Admin නැත්නම් Delete කරන්න බැහැ
+        if (!isBotAdmin) {
+          return remember.sendMessage(from, { text: "⚠️ *කුණුහරප / NSFW Message එක Delete කිරීමට Bot ට Group Admin බලතල දෙන්න!*" });
         }
 
-        // DeepAI / Sightengine API Check
-        const formData = new FormData();
-        formData.append('media', buffer, { filename: 'image.jpg' });
-        formData.append('models', 'nudity-2.0');
-        formData.append('api_user', 'YOUR_SIGHTENGINE_API_USER');
-        formData.append('api_secret', 'YOUR_SIGHTENGINE_API_SECRET');
+        // 1. Instantly Delete the Violating Message
+        await remember.sendMessage(from, { delete: m.key });
 
-        const res = await axios.post('https://api.sightengine.com/1.0/check.json', formData, {
-          headers: formData.getHeaders()
-        });
+        // 2. Count Warnings
+        let currentWarns = (userWarnings.get(sender) || 0) + 1;
+        userWarnings.set(sender, currentWarns);
 
-        if (res.data && res.data.nudity && res.data.nudity.sexual_activity > 0.5) {
-          isViolated = true;
-          violationReason = "18+ අසැබි පින්තූර යොමු කිරීම";
-        }
-      } catch (e) {}
-    }
+        const username = `@${sender.split("@")[0]}`;
 
-    // --- VIOLATION HANDLING & WARNING SYSTEM ---
-    if (isViolated) {
-      // 1. Instantly Delete the Violating Message
-      await remember.sendMessage(from, { delete: mek.key });
-
-      // 2. Count Warnings
-      let currentWarns = (userWarnings.get(sender) || 0) + 1;
-      userWarnings.set(sender, currentWarns);
-
-      const username = `@${sender.split('@')[0]}`;
-
-      // --- WARNING MESSAGES STYLES ---
-      if (currentWarns === 1) {
-        // 1st WARNING
-        const warn1Text = 
+        // --- WARNING MESSAGES STYLES ---
+        if (currentWarns === 1) {
+          const warn1Text = 
 `⚠️ *[ 1ST WARNING ]* ⚠️
 ━━━━━━━━━━━━━━━━━━━━
 👤 *User:* ${username}
@@ -88,11 +95,10 @@ remember.ev.on('messages.upsert', async (chatUpdate) => {
 ⚠️ *තව වාර 2ක් වැරදි කළහොත් සමූහයෙන් ඉවත් කරනු ලැබේ!*
 ━━━━━━━━━━━━━━━━━━━━`;
 
-        await remember.sendMessage(from, { text: warn1Text, mentions: [sender] });
+          await remember.sendMessage(from, { text: warn1Text, mentions: [sender] });
 
-      } else if (currentWarns === 2) {
-        // 2nd WARNING
-        const warn2Text = 
+        } else if (currentWarns === 2) {
+          const warn2Text = 
 `🚨 *[ 2ND WARNING - FINAL ALERT ]* 🚨
 ━━━━━━━━━━━━━━━━━━━━
 👤 *User:* ${username}
@@ -103,11 +109,10 @@ remember.ev.on('messages.upsert', async (chatUpdate) => {
 ❌ *තව එක් වරක් වැරදි කළහොත් කිසිදු දැනුම්දීමකින් තොරව Auto Kick කරනු ලැබේ!*
 ━━━━━━━━━━━━━━━━━━━━`;
 
-        await remember.sendMessage(from, { text: warn2Text, mentions: [sender] });
+          await remember.sendMessage(from, { text: warn2Text, mentions: [sender] });
 
-      } else if (currentWarns >= 3) {
-        // FINAL KICK
-        const kickText = 
+        } else if (currentWarns >= 3) {
+          const kickText = 
 `🛑 *[ FINAL WARNING - KICKED ]* 🛑
 ━━━━━━━━━━━━━━━━━━━━
 👤 *User:* ${username}
@@ -116,16 +121,16 @@ remember.ev.on('messages.upsert', async (chatUpdate) => {
 ✈️ *සමූහයේ ආරක්ෂාව උදෙසා අදාළ සාමාජිකයාව Group එකෙන් ඉවත් කරන ලදී!*
 ━━━━━━━━━━━━━━━━━━━━`;
 
-        // Kick User from Group
-        await remember.groupParticipantsUpdate(from, [sender], "remove");
-        await remember.sendMessage(from, { text: kickText, mentions: [sender] });
-        
-        // Reset Warnings
-        userWarnings.delete(sender);
-      }
-    }
+          // Kick User from Group
+          await remember.groupParticipantsUpdate(from, [sender], "remove");
+          await remember.sendMessage(from, { text: kickText, mentions: [sender] });
 
-  } catch (e) {
-    console.error("Filter Error:", e);
+          // Reset Warnings
+          userWarnings.delete(sender);
+        }
+      }
+    } catch (e) {
+      console.error("Filter Error:", e);
+    }
   }
-});
+);
