@@ -4,35 +4,28 @@
   "description": "POWER FULL WHATSAPP MINI BOT",
   "main": "index.js",
   "scripts": {
-    "start": "pm2 start index.js --deep-monitoring --attach --name REMEMBER",
-    "stop": "pm2 stop remember",
-    "restart": "pm2 restart remember"
+    "start": "node index.js"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "^6.7.24",
-    "qrcode": "^1.5.4",
-    "awesome-phonenumber": "^7.8.0",
-    "pino": "^10.3.1",
-    "phone": "^3.1.72",
-    "body-parser": "^2.3.0",
-    "express": "^5.2.1",
-    "path": "^0.12.7",
-    "megajs": "^1.3.10",
-    "dotenv": "^16.4.5",
-    "axios": "^1.19.0",
-    "pm2": "^7.0.3",
-    "yt-search": "^2.13.1",
-    "@vreden/youtube_scraper": "^1.2.9",
-    "@renpwn/fb-downloader": "^1.0.16",
-    "rimraf": "^6.1.3",
     "@eslint/config-array": "^0.23.5",
     "@eslint/object-schema": "^3.0.5",
-    "mongoose": "^8.0.0",
-    "eslint": "^10.8.1",
+    "@renpwn/fb-downloader": "^1.0.16",
+    "@vreden/youtube_scraper": "^1.2.9",
+    "@whiskeysockets/baileys": "^6.7.24",
+    "awesome-phonenumber": "^7.8.0",
     "axios": "^1.6.0",
-    "form-data": "^4.0.0"
-  }
-
-    }
+    "body-parser": "^2.3.0",
+    "dotenv": "^16.4.5",
+    "eslint": "^10.8.1",
+    "express": "^5.2.1",
+    "form-data": "^4.0.0",
+    "megajs": "^1.3.10",
+    "mongoose": "^8.0.0",
+    "path": "^0.12.7",
+    "phone": "^3.1.72",
+    "pino": "^10.3.1",
+    "qrcode": "^1.5.4",
+    "rimraf": "^6.1.3",
+    "yt-search": "^2.13.1"
   }
 }
