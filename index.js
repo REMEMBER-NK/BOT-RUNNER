@@ -9,15 +9,15 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 
 const activeRunningSessions = new Set();
-const processedMessages = new Set(); // Duplicate Messages Block කරන Cache එක
+const processedMessages = new Set();
 let cachedVersion = null;
 
-// TAHANAM WACHANA (BAD WORDS LIST)
+// TAHANAM WACHANA (BAD WORDS & NSFW KEYWORDS)
 const BAD_WORDS = [
-    "puka", "paka", "htt", "hukana", "huththa", "kari", "ponnaya", "hukapan", "hukano", "pakaya", "ponna", "hutho", "huththo"
+    "puka", "paka", "htt", "hukana", "huththa", "kari", "ponnaya", "hukapan", "hukano", "pakaya", "ponna", "hutho", "huththo",
+    "sex", "xnxx", "porn", "nude", "naked", "boobs", "bitch", "adult"
 ];
 
-// User Warnings Tracker (In-Memory)
 const userWarnings = new Map();
 
 // 1. Plugins Load කිරීම
@@ -77,13 +77,12 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
         }
     });
 
-    // Message Handler & Warning System Engine
+    // Message Handler Engine
     rememberBot.ev.on('messages.upsert', async (chatUpdate) => {
         try {
             const mek = chatUpdate.messages[0];
             if (!mek || !mek.message) return;
 
-            // Duplicate Message Check
             const msgId = mek.key.id;
             if (processedMessages.has(msgId)) return;
             processedMessages.add(msgId);
@@ -96,10 +95,12 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
             const type = Object.keys(mek.message)[0];
             const msg = type === 'viewOnceMessage' ? mek.message.viewOnceMessage.message : mek.message;
             
+            // Text and Caption Fetching for Images, Videos, Documents, and Text
             const body = msg.conversation || 
                          msg.extendedTextMessage?.text || 
                          msg.imageMessage?.caption || 
-                         msg.videoMessage?.caption || '';
+                         msg.videoMessage?.caption || 
+                         msg.documentMessage?.caption || '';
 
             const pushname = mek.pushName || "User";
             const reply = (text) => rememberBot.sendMessage(from, { text }, { quoted: mek });
@@ -125,72 +126,43 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
             }
 
             // =======================================================
-            // 🚨 BAD-WORD FILTER WITH 3-WARNING SYSTEM
+            // 🚨 BAD-WORD & NSFW CONTENT FILTER
             // =======================================================
             if (isGroup && body) {
                 const containsBadWord = BAD_WORDS.some(word => body.toLowerCase().includes(word));
 
                 if (containsBadWord) {
                     try {
-                        // 1. Delete Bad Word Message
+                        // Delete Content
                         await rememberBot.sendMessage(from, { delete: mek.key });
 
-                        // 2. Count Warnings
                         let currentWarns = (userWarnings.get(sender) || 0) + 1;
                         userWarnings.set(sender, currentWarns);
 
                         const username = `@${sender.split('@')[0]}`;
 
-                        // --- WARNING MESSAGES STYLES ---
                         if (currentWarns === 1) {
-                            const warn1Text = 
-`⚠️ *[ 1ST WARNING ]* ⚠️
-━━━━━━━━━━━━━━━━━━━━
-👤 *User:* ${username}
-🚫 *Reason:* කුණුහරප / අසැබි වචන භාවිතය
-📌 *Status:* Message Deleted!
-
-💬 *සමූහය තුළ කුණුහරප භාවිතය තහනම්!*
-⚠️ *තව වාර 2ක් වැරදි කළහොත් සමූහයෙන් ඉවත් කරනු ලැබේ!*
-━━━━━━━━━━━━━━━━━━━━`;
-
-                            await rememberBot.sendMessage(from, { text: warn1Text, mentions: [sender] });
-
+                            await rememberBot.sendMessage(from, { 
+                                text: `⚠️ *[ 1ST WARNING ]*\n━━━━━━━━━━━━━━━━━━━━\n👤 *User:* ${username}\n🚫 *Reason:* NSFW / අසැබි වචන හෝ පින්තූර යැවීම!\n📌 *Status:* Content Deleted!`, 
+                                mentions: [sender] 
+                            });
                         } else if (currentWarns === 2) {
-                            const warn2Text = 
-`🚨 *[ 2ND WARNING - FINAL ALERT ]* 🚨
-━━━━━━━━━━━━━━━━━━━━
-👤 *User:* ${username}
-🚫 *Reason:* කුණුහරප / අසැබි වචන භාවිතය
-📌 *Status:* Message Deleted!
-
-⚠️ *ඔබට හිමි අවසාන අවස්ථාව මෙයයි!*
-❌ *තව එක් වරක් වැරදි කළහොත් කිසිදු දැනුම්දීමකින් තොරව Auto Kick කරනු ලැබේ!*
-━━━━━━━━━━━━━━━━━━━━`;
-
-                            await rememberBot.sendMessage(from, { text: warn2Text, mentions: [sender] });
-
+                            await rememberBot.sendMessage(from, { 
+                                text: `🚨 *[ 2ND WARNING - FINAL ALERT ]*\n━━━━━━━━━━━━━━━━━━━━\n👤 *User:* ${username}\n⚠️ *තව එක් වරක් නීති පද්ධතිය කඩ කළහොත් Auto Kick කරනු ලැබේ!*`, 
+                                mentions: [sender] 
+                            });
                         } else if (currentWarns >= 3) {
-                            const kickText = 
-`🛑 *[ FINAL WARNING - KICKED ]* 🛑
-━━━━━━━━━━━━━━━━━━━━
-👤 *User:* ${username}
-🚫 *Reason:* වාර 3ක්ම Group නීති පද්ධතිය උල්ලංඝනය කිරීම!
-
-✈️ *සමූහයේ ආරක්ෂාව උදෙසා අදාළ සාමාජිකයාව Group එකෙන් ඉවත් කරන ලදී!*
-━━━━━━━━━━━━━━━━━━━━`;
-
-                            // Kick User
+                            await rememberBot.sendMessage(from, { 
+                                text: `🛑 *[ FINAL WARNING - KICKED ]*\n━━━━━━━━━━━━━━━━━━━━\n👤 *User:* ${username}\n✈️ *නීති පද්ධතිය වාර 3ක් කැඩූ බැවින් Group එකෙන් ඉවත් කරන ලදී!*`, 
+                                mentions: [sender] 
+                            });
                             await rememberBot.groupParticipantsUpdate(from, [sender], "remove");
-                            await rememberBot.sendMessage(from, { text: kickText, mentions: [sender] });
-
-                            // Reset Warning Counter
                             userWarnings.delete(sender);
                         }
 
-                        return; // Stop processing command
+                        return;
                     } catch (err) {
-                        console.log("Anti-Bad Error:", err.message);
+                        console.log("Anti-Bad / Anti-NSFW Error:", err.message);
                     }
                 }
             }
