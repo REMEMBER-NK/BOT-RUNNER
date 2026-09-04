@@ -16,18 +16,30 @@ async (rememberBot, mek, m, { from, reply, args, q, pushname }) => {
         await reply("🎨 *ඔයාගේ Logo එක නිර්මාණය වෙමින් පවතී... සුළු මොහොතක් රැඳී සිටින්න!*");
 
         // Enhanced Prompt
-        const promptText = `professional vector gaming logo, ${q}, high resolution, sharp details, centered, vector art, vibrant colors, clean background`;
-        const logoUrl = `https://pollinations.ai/p/${encodeURIComponent(promptText)}?width=1024&height=1024&seed=${Math.floor(Math.random() * 1000000)}&model=flux`;
+        const promptText = `professional vector gaming logo, ${q}, clean vector art, vibrant colors, centered, high quality`;
+        const encodedPrompt = encodeURIComponent(promptText);
+        const randomSeed = Math.floor(Math.random() * 1000000);
+        
+        // Updated Correct Pollinations API URL Structure
+        const logoUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&seed=${randomSeed}&model=flux&nologo=true`;
 
-        // Image එක Buffer එකක් ලෙස Fetch කරගැනීම (WhatsApp Media Loading Fix)
-        const response = await axios.get(logoUrl, { responseType: 'arraybuffer', timeout: 30000 });
-        const imageBuffer = Buffer.from(response.data, 'binary');
+        try {
+            // Option 1: Try fetching as Buffer (Fastest & Safest)
+            const response = await axios.get(logoUrl, { responseType: 'arraybuffer', timeout: 25000 });
+            const imageBuffer = Buffer.from(response.data, 'binary');
 
-        // Send Image Buffer directly
-        await rememberBot.sendMessage(from, {
-            image: imageBuffer,
-            caption: `✨ *REMEMBER-MD AI LOGO GENERATOR* ✨\n\n📌 *Prompt:* ${q}\n👤 *Requested By:* ${pushname}\n\n> Powered by REMEMBER-MD`
-        }, { quoted: mek });
+            await rememberBot.sendMessage(from, {
+                image: imageBuffer,
+                caption: `✨ *REMEMBER-MD AI LOGO GENERATOR* ✨\n\n📌 *Prompt:* ${q}\n👤 *Requested By:* ${pushname}\n\n> Powered by REMEMBER-MD`
+            }, { quoted: mek });
+
+        } catch (bufferErr) {
+            // Option 2: Fallback to Direct URL if Buffer Fetch Times out
+            await rememberBot.sendMessage(from, {
+                image: { url: logoUrl },
+                caption: `✨ *REMEMBER-MD AI LOGO GENERATOR* ✨\n\n📌 *Prompt:* ${q}\n👤 *Requested By:* ${pushname}\n\n> Powered by REMEMBER-MD`
+            }, { quoted: mek });
+        }
 
     } catch (e) {
         console.log("Logo Command Error:", e.message);
