@@ -105,7 +105,9 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
             const pushname = mek.pushName || "User";
             const reply = (text) => rememberBot.sendMessage(from, { text }, { quoted: mek });
 
-            // Group Metadata Check
+            // =======================================================
+            // 🛠️ FIX: Cleaned & Ultra-Accurate Group Admin Checker
+            // =======================================================
             let isBotAdmin = false;
             let isGroupAdmin = false;
             if (isGroup) {
@@ -113,13 +115,18 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
                     const groupMetadata = await rememberBot.groupMetadata(from);
                     const participants = groupMetadata.participants || [];
                     
-                    const botNumber = rememberBot.user.id.split(':')[0] + '@s.whatsapp.net';
-                    const botAdminObj = participants.find(p => p.id === botNumber);
-                    isBotAdmin = !!botAdminObj?.admin;
+                    // Clean bot JID to handle multi-device format (:1, :2)
+                    const rawBotId = rememberBot.user?.id || rememberBot.user?.jid || '';
+                    const botJid = rawBotId.split(':')[0].split('@')[0] + '@s.whatsapp.net';
+                    
+                    const botAdminObj = participants.find(p => p.id.split(':')[0].split('@')[0] + '@s.whatsapp.net' === botJid);
+                    isBotAdmin = botAdminObj ? (botAdminObj.admin === 'admin' || botAdminObj.admin === 'superadmin') : false;
 
-                    const senderObj = participants.find(p => p.id === sender);
-                    isGroupAdmin = !!senderObj?.admin;
+                    const cleanSender = sender.split(':')[0].split('@')[0] + '@s.whatsapp.net';
+                    const senderObj = participants.find(p => p.id.split(':')[0].split('@')[0] + '@s.whatsapp.net' === cleanSender);
+                    isGroupAdmin = senderObj ? (senderObj.admin === 'admin' || senderObj.admin === 'superadmin') : false;
                 } catch (e) {
+                    console.log("Admin Check Error:", e.message);
                     isBotAdmin = false;
                     isGroupAdmin = false;
                 }
