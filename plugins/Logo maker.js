@@ -15,20 +15,22 @@ async (rememberBot, mek, m, { from, reply, args, q, pushname }) => {
 
         await reply("🎨 *ඔයාගේ Logo එක නිර්මාණය වෙමින් පවතී... සුළු මොහොතක් රැඳී සිටින්න!*");
 
-        // Logo Prompt එක Enhance කිරීම
-        const enhancedPrompt = encodeURIComponent(`professional vector logo, ${q}, high quality, clean background, graphic design, 8k`);
-        
-        // Pollinations Free Image API URL
-        const logoUrl = `https://pollinations.ai/p/${enhancedPrompt}?width=1024&height=1024&seed=${Math.floor(Math.random() * 1000000)}&model=flux`;
+        // Enhanced Prompt
+        const promptText = `professional vector gaming logo, ${q}, high resolution, sharp details, centered, vector art, vibrant colors, clean background`;
+        const logoUrl = `https://pollinations.ai/p/${encodeURIComponent(promptText)}?width=1024&height=1024&seed=${Math.floor(Math.random() * 1000000)}&model=flux`;
 
-        // Image එක Send කිරීම
+        // Image එක Buffer එකක් ලෙස Fetch කරගැනීම (WhatsApp Media Loading Fix)
+        const response = await axios.get(logoUrl, { responseType: 'arraybuffer', timeout: 30000 });
+        const imageBuffer = Buffer.from(response.data, 'binary');
+
+        // Send Image Buffer directly
         await rememberBot.sendMessage(from, {
-            image: { url: logoUrl },
+            image: imageBuffer,
             caption: `✨ *REMEMBER-MD AI LOGO GENERATOR* ✨\n\n📌 *Prompt:* ${q}\n👤 *Requested By:* ${pushname}\n\n> Powered by REMEMBER-MD`
         }, { quoted: mek });
 
     } catch (e) {
-        console.log("Logo Command Error:", e);
-        reply("❌ Logo එක සෑදීමේදී දෝෂයක් සිදු විය! නැවත උත්සාහ කරන්න.");
+        console.log("Logo Command Error:", e.message);
+        reply("❌ *Logo එක Generate කිරීමේදී දෝෂයක් සිදු විය! මොහොතකින් නැවත උත්සාහ කරන්න.*");
     }
 });
