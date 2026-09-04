@@ -12,10 +12,10 @@ const activeRunningSessions = new Set();
 const processedMessages = new Set();
 let cachedVersion = null;
 
-// TAHANAM WACHANA & NSFW KEYWORDS
+// TAHANAM WACHANA (BAD WORDS & NSFW KEYWORDS)
 const BAD_WORDS = [
     "puka", "paka", "htt", "hukana", "huththa", "kari", "ponnaya", "hukapan", "hukano", "pakaya", "ponna", "hutho", "huththo",
-    "sex", "xnxx", "porn", "nude", "naked", "boobs", "bitch", "adult", "xxx", "fuck", "pussy", "dick"
+    "sex", "xnxx", "porn", "nude", "naked", "boobs", "bitch", "adult"
 ];
 
 const userWarnings = new Map();
@@ -95,19 +95,17 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
             const type = Object.keys(mek.message)[0];
             const msg = type === 'viewOnceMessage' ? mek.message.viewOnceMessage.message : mek.message;
             
+            // Text and Caption Fetching for Images, Videos, Documents, and Text
             const body = msg.conversation || 
                          msg.extendedTextMessage?.text || 
                          msg.imageMessage?.caption || 
                          msg.videoMessage?.caption || 
-                         msg.documentMessage?.caption || 
-                         msg.documentMessage?.fileName || '';
+                         msg.documentMessage?.caption || '';
 
             const pushname = mek.pushName || "User";
             const reply = (text) => rememberBot.sendMessage(from, { text }, { quoted: mek });
 
-            // =======================================================
-            // 🛠️ FIX: Cleaned & Ultra-Accurate Group Admin Checker
-            // =======================================================
+            // Group Metadata Check
             let isBotAdmin = false;
             let isGroupAdmin = false;
             if (isGroup) {
@@ -115,37 +113,28 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
                     const groupMetadata = await rememberBot.groupMetadata(from);
                     const participants = groupMetadata.participants || [];
                     
-                    // Clean bot JID to handle multi-device format (:1, :2)
-                    const rawBotId = rememberBot.user?.id || rememberBot.user?.jid || '';
-                    const botJid = rawBotId.split(':')[0].split('@')[0] + '@s.whatsapp.net';
-                    
-                    const botAdminObj = participants.find(p => p.id.split(':')[0].split('@')[0] + '@s.whatsapp.net' === botJid);
-                    isBotAdmin = botAdminObj ? (botAdminObj.admin === 'admin' || botAdminObj.admin === 'superadmin') : false;
+                    const botNumber = rememberBot.user.id.split(':')[0] + '@s.whatsapp.net';
+                    const botAdminObj = participants.find(p => p.id === botNumber);
+                    isBotAdmin = !!botAdminObj?.admin;
 
-                    const cleanSender = sender.split(':')[0].split('@')[0] + '@s.whatsapp.net';
-                    const senderObj = participants.find(p => p.id.split(':')[0].split('@')[0] + '@s.whatsapp.net' === cleanSender);
-                    isGroupAdmin = senderObj ? (senderObj.admin === 'admin' || senderObj.admin === 'superadmin') : false;
+                    const senderObj = participants.find(p => p.id === sender);
+                    isGroupAdmin = !!senderObj?.admin;
                 } catch (e) {
-                    console.log("Admin Check Error:", e.message);
                     isBotAdmin = false;
                     isGroupAdmin = false;
                 }
             }
 
             // =======================================================
-            // 🚨 ADVANCED Anti-Bad Word & Anti-NSFW System
+            // 🚨 BAD-WORD & NSFW CONTENT FILTER
             // =======================================================
             if (isGroup && body) {
-                const isNsfwDetected = BAD_WORDS.some(word => body.toLowerCase().includes(word));
+                const containsBadWord = BAD_WORDS.some(word => body.toLowerCase().includes(word));
 
-                if (isNsfwDetected) {
+                if (containsBadWord) {
                     try {
-                        if (isBotAdmin) {
-                            await rememberBot.sendMessage(from, { delete: mek.key });
-                        } else {
-                            await reply("⚠️ *අසැබි / NSFW පණිවිඩයක් හමු විය! මාව Admin කළහොත් පමණක් එය මකා දැමිය හැක.*");
-                            return;
-                        }
+                        // Delete Content
+                        await rememberBot.sendMessage(from, { delete: mek.key });
 
                         let currentWarns = (userWarnings.get(sender) || 0) + 1;
                         userWarnings.set(sender, currentWarns);
@@ -154,35 +143,33 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
 
                         if (currentWarns === 1) {
                             await rememberBot.sendMessage(from, { 
-                                text: `⚠️ *[ 1ST WARNING ]*\n━━━━━━━━━━━━━━━━━━━━\n👤 *User:* ${username}\n🚫 *Reason:* අසැබි වචන/NSFW භාවිතය!\n📌 *Status:* Deleted!`, 
+                                text: `⚠️ *[ 1ST WARNING ]*\n━━━━━━━━━━━━━━━━━━━━\n👤 *User:* ${username}\n🚫 *Reason:* NSFW / අසැබි වචන හෝ පින්තූර යැවීම!\n📌 *Status:* Content Deleted!`, 
                                 mentions: [sender] 
                             });
                         } else if (currentWarns === 2) {
                             await rememberBot.sendMessage(from, { 
-                                text: `🚨 *[ 2ND WARNING - FINAL ALERT ]*\n━━━━━━━━━━━━━━━━━━━━\n👤 *User:* ${username}\n⚠️ *තව 1 පාරක් කළහොත් Group එකෙන් Kick කරනු ලැබේ!*`, 
+                                text: `🚨 *[ 2ND WARNING - FINAL ALERT ]*\n━━━━━━━━━━━━━━━━━━━━\n👤 *User:* ${username}\n⚠️ *තව එක් වරක් නීති පද්ධතිය කඩ කළහොත් Auto Kick කරනු ලැබේ!*`, 
                                 mentions: [sender] 
                             });
                         } else if (currentWarns >= 3) {
                             await rememberBot.sendMessage(from, { 
-                                text: `🛑 *[ KICKED FROM GROUP ]*\n━━━━━━━━━━━━━━━━━━━━\n👤 *User:* ${username}\n✈️ *නීති 3 පාරක් කැඩූ නිසා ඉවත් කරන ලදී!*`, 
+                                text: `🛑 *[ FINAL WARNING - KICKED ]*\n━━━━━━━━━━━━━━━━━━━━\n👤 *User:* ${username}\n✈️ *නීති පද්ධතිය වාර 3ක් කැඩූ බැවින් Group එකෙන් ඉවත් කරන ලදී!*`, 
                                 mentions: [sender] 
                             });
-                            if (isBotAdmin) {
-                                await rememberBot.groupParticipantsUpdate(from, [sender], "remove");
-                            }
+                            await rememberBot.groupParticipantsUpdate(from, [sender], "remove");
                             userWarnings.delete(sender);
                         }
 
                         return;
                     } catch (err) {
-                        console.log("Anti-NSFW Error:", err.message);
+                        console.log("Anti-Bad / Anti-NSFW Error:", err.message);
                     }
                 }
             }
             // =======================================================
 
             // Command Processing
-            if (body && body.startsWith('.')) {
+            if (body.startsWith('.')) {
                 const args = body.trim().split(/ +/).slice(1);
                 const commandName = body.slice(1).split(" ")[0].toLowerCase();
                 const q = args.join(" ");
