@@ -35,7 +35,7 @@ async (rememberBot, mek, m, { from, reply, args, q, pushname }) => {
 
         await rememberBot.sendMessage(from, {
             image: imageBuffer,
-            caption: `🔥 *REMEMBER EDITZ HD LOGO* 🔥\n\n👤 *Name:* ${q}\n\n> Powered by REMEMBER-MD`
+            caption: `🔥 *REMEMBER HD LOGO* 🔥\n\n👤 *Name:* ${q}\n\n> Powered by REMEMBER-MD`
         }, { quoted: mek });
 
     } catch (e) {
