@@ -12,7 +12,7 @@ const activeRunningSessions = new Set();
 const processedMessages = new Set();
 let cachedVersion = null;
 
-// 1. Anti-Delete External Plugin Safe Import (Anti_Delete.js සඳහා)
+// 1. Anti-Delete External Plugin Safe Import
 let antiDelete = { onMessage: async () => {}, onDelete: async () => {} };
 try {
     antiDelete = require('./plugins/Anti_Delete');
@@ -45,20 +45,11 @@ if (fs.existsSync(pluginsDir)) {
     });
 }
 
-// Helper Function: Profile Picture Base64 Converter
-async function getProfilePicBase64(bot, jid) {
+// Helper Function: Profile Picture Direct URL grabber
+async function getProfilePicUrl(bot, jid) {
     try {
         const ppUrl = await bot.profilePictureUrl(jid, 'image');
-        if (!ppUrl) return 'https://i.ibb.co/6BRM12f/avatar-contact.png';
-        
-        const response = await fetch(ppUrl);
-        if (!response.ok) return 'https://i.ibb.co/6BRM12f/avatar-contact.png';
-        
-        const arrayBuffer = await response.arrayBuffer();
-        const buffer = Buffer.from(arrayBuffer);
-        const mimeType = response.headers.get('content-type') || 'image/jpeg';
-        
-        return `data:${mimeType};base64,${buffer.toString('base64')}`;
+        return ppUrl || 'https://i.ibb.co/6BRM12f/avatar-contact.png';
     } catch (e) {
         return 'https://i.ibb.co/6BRM12f/avatar-contact.png';
     }
@@ -108,15 +99,20 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
     });
 
     // -------------------------------------------------------------
-    // 👋 GROUP WELCOME EVENT ENGINE
+    // 👋 GROUP WELCOME EVENT ENGINE (FIXED)
     // -------------------------------------------------------------
     rememberBot.ev.on('group-participants.update', async (update) => {
         try {
             const { id, participants, action } = update;
             if (!id || !id.endsWith('@g.us')) return;
 
+            const botJid = rememberBot.user?.id ? rememberBot.user.id.split(':')[0] + '@s.whatsapp.net' : '';
+
             if (action === 'add') {
                 for (let num of participants) {
+                    // Bot එක තමන්වම Welcome කරගැනීම වැළැක්වීම
+                    if (num === botJid) continue;
+
                     const userJid = num;
                     const userName = `@${userJid.split('@')[0]}`;
 
@@ -126,11 +122,13 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
                         const groupMetadata = await rememberBot.groupMetadata(id);
                         groupName = groupMetadata.subject || "Group";
                         memberCount = groupMetadata.participants ? groupMetadata.participants.length : "1+";
-                    } catch (e) {}
+                    } catch (e) {
+                        console.log("Group Metadata Fetch Error:", e.message);
+                    }
 
-                    const ppUserBase64 = await getProfilePicBase64(rememberBot, userJid);
+                    const ppUrl = await getProfilePicUrl(rememberBot, userJid);
 
-                    const welcomeImgUrl = `https://api.popcat.xyz/welcomecard?background=https://i.ibb.co/4M34dqb/wallpaper.jpg&text1=${encodeURIComponent(userJid.split('@')[0])}&text2=Welcome+To+${encodeURIComponent(groupName)}&text3=Member+${memberCount}&avatar=${encodeURIComponent(ppUserBase64)}`;
+                    const welcomeImgUrl = `https://api.popcat.xyz/welcomecard?background=https://i.ibb.co/4M34dqb/wallpaper.jpg&text1=${encodeURIComponent(userJid.split('@')[0])}&text2=Welcome+To+${encodeURIComponent(groupName.replace(/[^a-zA-Z0-9 ]/g, ""))}&text3=Member+${memberCount}&avatar=${encodeURIComponent(ppUrl)}`;
 
                     const welcomeText = `👋 *WELCOME TO THE GROUP!* 👋\n\n` +
                                         `👤 *User:* ${userName}\n` +
@@ -172,7 +170,6 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
             const mek = chatUpdate.messages[0];
             if (!mek || !mek.message) return;
 
-            // Media & Text Message Cache කිරීම
             if (antiDelete && typeof antiDelete.onMessage === 'function') {
                 await antiDelete.onMessage(rememberBot, mek);
             }
@@ -199,7 +196,6 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
             const pushname = mek.pushName || "User";
             const reply = (text) => rememberBot.sendMessage(from, { text }, { quoted: mek });
 
-            // Group Metadata & Admin Checks
             let isBotAdmin = false;
             let isGroupAdmin = false;
             if (isGroup) {
@@ -222,7 +218,6 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
                 }
             }
 
-            // Command Processing
             if (body && body.startsWith('.')) {
                 const args = body.trim().split(/ +/).slice(1);
                 const commandName = body.slice(1).split(" ")[0].toLowerCase();
