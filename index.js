@@ -12,12 +12,12 @@ const activeRunningSessions = new Set();
 const processedMessages = new Set();
 let cachedVersion = null;
 
-// 1. Plugins Load කිරීම
+// 1. Plugins Load කිරීම (welcome.js එක Auto-Load loop එකෙන් Exclude කර ඇත)
 const events = require('./command');
 const pluginsDir = path.join(__dirname, 'plugins');
 if (fs.existsSync(pluginsDir)) {
     fs.readdirSync(pluginsDir).forEach((plugin) => {
-        if (path.extname(plugin).toLowerCase() === '.js') {
+        if (path.extname(plugin).toLowerCase() === '.js' && plugin !== 'welcome.js') {
             try {
                 require(path.join(pluginsDir, plugin));
             } catch (err) {
@@ -68,6 +68,19 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
             console.log(`✅ REMEMBER-MD Connected Successfully for [${sessionId}]!`);
         }
     });
+
+    // -------------------------------------------------------------
+    // 🔥 Dynamic Welcome Event Hooking (Cache Cleared for Clean Multi-Session Engine)
+    // -------------------------------------------------------------
+    try {
+        const welcomePath = path.join(__dirname, 'plugins', 'welcome.js');
+        if (fs.existsSync(welcomePath)) {
+            delete require.cache[require.resolve(welcomePath)];
+            require(welcomePath)(rememberBot);
+        }
+    } catch (err) {
+        console.log("❌ Welcome Hook Error:", err.message);
+    }
 
     // Message Handler Engine
     rememberBot.ev.on('messages.upsert', async (chatUpdate) => {
@@ -185,7 +198,7 @@ async function checkForNewSessions() {
 // 4. Main Master Launcher
 async function startAllBots() {
     const mongoUri = process.env.MONGODB; 
-    if (!mongoUri) return console.log("❌ MONGODB Variable is missing in Railway!");
+    if (!mongoUri) return console.log("❌ MONGODB Variable is missing!");
 
     try {
         await mongoose.connect(mongoUri);
