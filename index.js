@@ -12,20 +12,30 @@ const activeRunningSessions = new Set();
 const processedMessages = new Set();
 let cachedVersion = null;
 
-// Anti-Delete External Plugin Direct Require
-const antiDelete = require('./plugins/antidelete');
+// 1. Anti-Delete External Plugin Safe Import (Anti_Delete.js සඳහා)
+let antiDelete = { onMessage: async () => {}, onDelete: async () => {} };
+try {
+    antiDelete = require('./plugins/Anti_Delete');
+} catch (e) {
+    try {
+        antiDelete = require('./plugins/antidelete');
+    } catch (err) {
+        console.log("⚠️ Anti-Delete plugin import error:", err.message);
+    }
+}
 
 // Global Anti-Delete State
 if (typeof global.antiDeleteEnabled === 'undefined') {
     global.antiDeleteEnabled = true;
 }
 
-// 1. External Plugins Load කිරීම
+// 2. External Plugins Load කිරීම
 const events = require('./command');
 const pluginsDir = path.join(__dirname, 'plugins');
 if (fs.existsSync(pluginsDir)) {
     fs.readdirSync(pluginsDir).forEach((plugin) => {
-        if (path.extname(plugin).toLowerCase() === '.js' && plugin !== 'welcome.js' && plugin !== 'antidelete.js') {
+        const lowerPlugin = plugin.toLowerCase();
+        if (path.extname(plugin).toLowerCase() === '.js' && lowerPlugin !== 'welcome.js' && lowerPlugin !== 'anti_delete.js' && lowerPlugin !== 'antidelete.js') {
             try {
                 require(path.join(pluginsDir, plugin));
             } catch (err) {
@@ -54,7 +64,7 @@ async function getProfilePicBase64(bot, jid) {
     }
 }
 
-// 2. Single Bot Instance Starter
+// 3. Single Bot Instance Starter
 async function startSingleBotInstance(sessionId, sessionData, version) {
     const sessionDir = path.join(__dirname, 'sessions', sessionId);
     if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
@@ -98,7 +108,7 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
     });
 
     // -------------------------------------------------------------
-    // 👋 1. GROUP WELCOME EVENT ENGINE
+    // 👋 GROUP WELCOME EVENT ENGINE
     // -------------------------------------------------------------
     rememberBot.ev.on('group-participants.update', async (update) => {
         try {
@@ -141,19 +151,21 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
     });
 
     // -------------------------------------------------------------
-    // 🗑️ 2. ANTI-DELETE RECOVERY LISTENER
+    // 🗑️ ANTI-DELETE RECOVERY LISTENER
     // -------------------------------------------------------------
     rememberBot.ev.on('messages.update', async (updates) => {
         try {
             if (global.antiDeleteEnabled === false) return;
-            await antiDelete.onDelete(rememberBot, updates);
+            if (antiDelete && typeof antiDelete.onDelete === 'function') {
+                await antiDelete.onDelete(rememberBot, updates);
+            }
         } catch (e) {
             console.log("Anti-Delete Event Error:", e.message);
         }
     });
 
     // -------------------------------------------------------------
-    // 💬 3. MAIN MESSAGE & COMMAND HANDLER
+    // 💬 MAIN MESSAGE & COMMAND HANDLER
     // -------------------------------------------------------------
     rememberBot.ev.on('messages.upsert', async (chatUpdate) => {
         try {
@@ -161,7 +173,9 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
             if (!mek || !mek.message) return;
 
             // Media & Text Message Cache කිරීම
-            await antiDelete.onMessage(rememberBot, mek);
+            if (antiDelete && typeof antiDelete.onMessage === 'function') {
+                await antiDelete.onMessage(rememberBot, mek);
+            }
 
             const msgId = mek.key.id;
             if (processedMessages.has(msgId)) return;
