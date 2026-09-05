@@ -2,12 +2,14 @@ const { TelegramClient } = require("telegram");
 const { StringSession } = require("telegram/sessions");
 const cmd = require('../command');
 
-// ⚙️ ඔයාගේ Telegram API Details
+// ⚙️ 1. Telegram API Credentials
 const apiId = 21859105; 
 const apiHash = "a994154a58476ca576b5d719a5ccd72e"; 
-const stringSession = new StringSession(""); 
 
-// ⚙️ Telegram Channel Username
+// ⚙️ 2. BotFather Bot Token
+const botToken = "8975770176:AAEvau9lKLXyOlOIHiVFQsF-dQQOfasctNA"; 
+
+// ⚙️ 3. Telegram Channel Username
 const TG_CHANNEL = "botvideosremember"; 
 
 let tgClient = null;
@@ -21,34 +23,38 @@ cmd({
 },
 async(rememberBot, mek, m, { from, reply }) => {
     try {
-        reply("⏳ *Database එකෙන් Video එකක් ගනිමින් පවතී...*");
+        await reply("⏳ *Telegram Database එකෙන් Video එකක් ගනිමින් පවතී...*");
 
-        // Telegram Client එක Connect කිරීම
+        // Telegram Client එක Bot Token එකෙන් Connect කිරීම
         if (!tgClient) {
-            tgClient = new TelegramClient(stringSession, apiId, apiHash, {
+            console.log("Connecting to Telegram via Bot Token...");
+            tgClient = new TelegramClient(new StringSession(""), apiId, apiHash, {
                 connectionRetries: 5,
             });
-            await tgClient.connect();
+
+            // Bot Login
+            await tgClient.start({
+                botAuthToken: botToken,
+            });
+            console.log("✅ Telegram Bot Client Connected Successfully!");
         }
 
-        // Channel එකේ තියෙන අන්තිම Messages 80 ලබාගැනීම
-        const messages = await tgClient.getMessages(TG_CHANNEL, { limit: 80 });
+        // Channel එකේ තියෙන අන්තිම Messages 100 ලබාගැනීම
+        const messages = await tgClient.getMessages(TG_CHANNEL, { limit: 100 });
 
-        // Messages වලින් Media/Video තියෙන ඒවා විතරක් Filter කරගැනීම
-        const videoMessages = messages.filter(msg => 
-            msg.media && (msg.media.className === 'MessageMediaDocument' || msg.media.className === 'MessageMediaPhoto')
-        );
+        // Photos/Videos විතරක් Filter කරගැනීම
+        const mediaMessages = messages.filter(msg => msg.media);
 
-        if (videoMessages.length === 0) {
-            return reply("❌ Channel එකේ Videos/Media කිසිවක් හමු නොවුණි!");
+        if (mediaMessages.length === 0) {
+            return reply("❌ Channel එකේ Videos/Photos කිසිවක් හමු නොවුණි!");
         }
 
-        // Random ලෙස එක Video එකක් තෝරාගැනීම
-        const randomMsg = videoMessages[Math.floor(Math.random() * videoMessages.length)];
+        // Random එකක් තෝරාගැනීම
+        const randomMsg = mediaMessages[Math.floor(Math.random() * mediaMessages.length)];
 
-        // Video එක Download කිරීම
+        console.log("Downloading media from Telegram...");
         const buffer = await tgClient.downloadMedia(randomMsg.media, {});
-        const captionText = randomMsg.message || "Random Video";
+        const captionText = randomMsg.message || "Random Content";
 
         // Photo ද Video ද යන්න බලලා WhatsApp එකට Send කිරීම
         if (randomMsg.media.className === 'MessageMediaPhoto') {
@@ -65,7 +71,7 @@ async(rememberBot, mek, m, { from, reply }) => {
         }
 
     } catch (e) {
-        console.log("Telegram Random Video Error:", e);
-        reply("❌ Video එක ලබාගැනීමේදී දෝෂයක් ආවා!");
+        console.error("Telegram Error Detailed:", e);
+        reply(`❌ Error එකක් ආවා: ${e.message}`);
     }
 });
