@@ -12,12 +12,12 @@ const activeRunningSessions = new Set();
 const processedMessages = new Set();
 let cachedVersion = null;
 
-// Global Anti-Delete State Initialize කිරීම
+// Global Anti-Delete State
 if (typeof global.antiDeleteEnabled === 'undefined') {
     global.antiDeleteEnabled = true;
 }
 
-// 1. Plugins Load කිරීම (welcome.js එක Auto-Load loop එකෙන් Exclude කර ඇත)
+// 1. External Plugins Load කිරීම
 const events = require('./command');
 const pluginsDir = path.join(__dirname, 'plugins');
 if (fs.existsSync(pluginsDir)) {
@@ -48,7 +48,7 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
         auth: state,
         version,
         syncFullHistory: false,
-        markOnlineOnConnect: true // 🔥 Group Events ලැබීමට මෙය අනිවාර්ය වේ
+        markOnlineOnConnect: true
     });
 
     rememberBot.ev.on('creds.update', saveCreds);
@@ -76,24 +76,58 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
     });
 
     // -------------------------------------------------------------
-    // 🔥 Dynamic Welcome Event Hooking
+    // 👋 1. GROUP WELCOME EVENT ENGINE (Direct Socket Listening)
     // -------------------------------------------------------------
-    try {
-        const welcomePath = path.join(__dirname, 'plugins', 'welcome.js');
-        if (fs.existsSync(welcomePath)) {
-            delete require.cache[require.resolve(welcomePath)];
-            require(welcomePath)(rememberBot);
+    rememberBot.ev.on('group-participants.update', async (update) => {
+        try {
+            const { id, participants, action } = update;
+            if (!id || !id.endsWith('@g.us')) return;
+
+            if (action === 'add') {
+                for (let num of participants) {
+                    const userJid = num;
+                    const userName = `@${userJid.split('@')[0]}`;
+
+                    let groupName = "Group";
+                    let memberCount = "1+";
+                    try {
+                        const groupMetadata = await rememberBot.groupMetadata(id);
+                        groupName = groupMetadata.subject || "Group";
+                        memberCount = groupMetadata.participants ? groupMetadata.participants.length : "1+";
+                    } catch (e) {}
+
+                    let ppUser;
+                    try {
+                        ppUser = await rememberBot.profilePictureUrl(userJid, 'image');
+                    } catch {
+                        ppUser = 'https://i.ibb.co/6BRM12f/avatar-contact.png';
+                    }
+
+                    const welcomeImgUrl = `https://api.popcat.xyz/welcomecard?background=https://i.ibb.co/4M34dqb/wallpaper.jpg&text1=${encodeURIComponent(userJid.split('@')[0])}&text2=Welcome+To+${encodeURIComponent(groupName)}&text3=Member+${memberCount}&avatar=${encodeURIComponent(ppUser)}`;
+
+                    const welcomeText = `👋 *WELCOME TO THE GROUP!* 👋\n\n` +
+                                        `👤 *User:* ${userName}\n` +
+                                        `🏰 *Group:* ${groupName}\n` +
+                                        `🔢 *Member Count:* #${memberCount}\n\n` +
+                                        `> Powered by REMEMBER-MD`;
+
+                    await rememberBot.sendMessage(id, {
+                        image: { url: welcomeImgUrl },
+                        caption: welcomeText,
+                        mentions: [userJid]
+                    });
+                }
+            }
+        } catch (err) {
+            console.log("Welcome Event Error:", err.message);
         }
-    } catch (err) {
-        console.log("❌ Welcome Hook Error:", err.message);
-    }
+    });
 
     // -------------------------------------------------------------
-    // 🗑️ ANTI-DELETE REALTIME ENGINE
+    // 🗑️ 2. ANTI-DELETE ENGINE (Direct Memory Storage & Protocol Capture)
     // -------------------------------------------------------------
     const messageStore = new Map();
 
-    // Delete Updates Catching
     rememberBot.ev.on('messages.update', async (updates) => {
         try {
             if (global.antiDeleteEnabled === false) return;
@@ -129,13 +163,15 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
         }
     });
 
-    // Message Handler Engine
+    // -------------------------------------------------------------
+    // 💬 3. MAIN MESSAGE & COMMAND HANDLER
+    // -------------------------------------------------------------
     rememberBot.ev.on('messages.upsert', async (chatUpdate) => {
         try {
             const mek = chatUpdate.messages[0];
             if (!mek || !mek.message) return;
 
-            // Anti-Delete Store එකට Save කිරීම (Min 10 Cache)
+            // Anti-Delete Storage (10 Min Caching)
             if (!mek.key.fromMe) {
                 messageStore.set(mek.key.id, mek);
                 setTimeout(() => messageStore.delete(mek.key.id), 10 * 60 * 1000);
@@ -163,7 +199,7 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
             const pushname = mek.pushName || "User";
             const reply = (text) => rememberBot.sendMessage(from, { text }, { quoted: mek });
 
-            // Group Metadata Check
+            // Group Metadata & Admin Checks
             let isBotAdmin = false;
             let isGroupAdmin = false;
             if (isGroup) {
@@ -221,7 +257,7 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
     });
 }
 
-// 3. Dynamic Session Checker
+// 4. Dynamic Session Checker
 async function checkForNewSessions() {
     try {
         if (mongoose.connection.readyState !== 1) return;
@@ -248,7 +284,7 @@ async function checkForNewSessions() {
     }
 }
 
-// 4. Main Master Launcher
+// 5. Main Launcher
 async function startAllBots() {
     const mongoUri = process.env.MONGODB; 
     if (!mongoUri) return console.log("❌ MONGODB Variable is missing!");
