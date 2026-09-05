@@ -12,6 +12,11 @@ const activeRunningSessions = new Set();
 const processedMessages = new Set();
 let cachedVersion = null;
 
+// Global Anti-Delete State Initialize කිරීම
+if (typeof global.antiDeleteEnabled === 'undefined') {
+    global.antiDeleteEnabled = true;
+}
+
 // 1. Plugins Load කිරීම (welcome.js එක Auto-Load loop එකෙන් Exclude කර ඇත)
 const events = require('./command');
 const pluginsDir = path.join(__dirname, 'plugins');
@@ -42,7 +47,8 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
         browser: ['REMEMBER-MD', 'Chrome', '1.0.0'],
         auth: state,
         version,
-        syncFullHistory: false
+        syncFullHistory: false,
+        markOnlineOnConnect: true
     });
 
     rememberBot.ev.on('creds.update', saveCreds);
@@ -70,7 +76,7 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
     });
 
     // -------------------------------------------------------------
-    // 🔥 Dynamic Welcome Event Hooking (Cache Cleared for Clean Multi-Session Engine)
+    // 🔥 Dynamic Welcome Event Hooking
     // -------------------------------------------------------------
     try {
         const welcomePath = path.join(__dirname, 'plugins', 'welcome.js');
@@ -82,11 +88,58 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
         console.log("❌ Welcome Hook Error:", err.message);
     }
 
+    // -------------------------------------------------------------
+    // 🗑️ ANTI-DELETE REALTIME ENGINE
+    // -------------------------------------------------------------
+    const messageStore = new Map();
+
+    // Delete Updates Catching
+    rememberBot.ev.on('messages.update', async (updates) => {
+        try {
+            if (global.antiDeleteEnabled === false) return;
+
+            for (const update of updates) {
+                if (update.update && update.update.protocolMessage && update.update.protocolMessage.type === 0) {
+                    const deletedKey = update.update.protocolMessage.key;
+                    const deletedMsg = messageStore.get(deletedKey.id);
+
+                    if (deletedMsg) {
+                        const from = update.key.remoteJid;
+                        const deleterJid = update.key.participant || update.key.remoteJid;
+                        const senderJid = deletedMsg.key.participant || deletedMsg.key.remoteJid;
+
+                        const captionText = `⚠️ *DELETED MESSAGE DETECTED!* ⚠️\n\n` +
+                                            `👤 *Deleted By:* @${deleterJid.split('@')[0]}\n` +
+                                            `✉️ *Original Sender:* @${senderJid.split('@')[0]}\n` +
+                                            `🏰 *Chat:* ${from.endsWith('@g.us') ? 'Group Chat' : 'Private Chat'}\n\n` +
+                                            `> Powered by REMEMBER-MD`;
+
+                        await rememberBot.sendMessage(from, {
+                            text: captionText,
+                            mentions: [deleterJid, senderJid]
+                        });
+
+                        await rememberBot.sendMessage(from, { forward: deletedMsg }, { quoted: deletedMsg });
+                        messageStore.delete(deletedKey.id);
+                    }
+                }
+            }
+        } catch (e) {
+            console.log("Anti-Delete Protocol Error:", e.message);
+        }
+    });
+
     // Message Handler Engine
     rememberBot.ev.on('messages.upsert', async (chatUpdate) => {
         try {
             const mek = chatUpdate.messages[0];
             if (!mek || !mek.message) return;
+
+            // Anti-Delete Store එකට Save කිරීම (Min 10 Cache)
+            if (!mek.key.fromMe) {
+                messageStore.set(mek.key.id, mek);
+                setTimeout(() => messageStore.delete(mek.key.id), 10 * 60 * 1000);
+            }
 
             const msgId = mek.key.id;
             if (processedMessages.has(msgId)) return;
