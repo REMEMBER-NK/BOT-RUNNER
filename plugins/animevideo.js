@@ -8,7 +8,7 @@ const apiHash = "a994154a58476ca576b5d719a5ccd72e";
 const stringSession = new StringSession(""); 
 
 // ⚙️ Telegram Channel Username
-const TG_CHANNEL = "Botvideosremember"; 
+const TG_CHANNEL = "botvideosremember"; 
 
 let tgClient = null;
 
