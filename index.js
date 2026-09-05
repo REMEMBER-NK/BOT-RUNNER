@@ -48,7 +48,7 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
         auth: state,
         version,
         syncFullHistory: false,
-        markOnlineOnConnect: true
+        markOnlineOnConnect: true // 🔥 Group Events ලැබීමට මෙය අනිවාර්ය වේ
     });
 
     rememberBot.ev.on('creds.update', saveCreds);
