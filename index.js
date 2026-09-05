@@ -12,24 +12,15 @@ const activeRunningSessions = new Set();
 const processedMessages = new Set();
 let cachedVersion = null;
 
-// 1. Anti-Delete External Plugin Safe Import
-let antiDelete = { onMessage: async () => {}, onDelete: async () => {} };
-try {
-    antiDelete = require('./plugins/Anti_Delete');
-} catch (e) {
-    try {
-        antiDelete = require('./plugins/antidelete');
-    } catch (err) {
-        console.log("⚠️ Anti-Delete plugin import error:", err.message);
-    }
-}
+// 🧠 Global Message Store (Anti-Delete එක සඳහා Messages Save කර තැබීමට)
+const msgStore = new Map();
 
 // Global Anti-Delete State
 if (typeof global.antiDeleteEnabled === 'undefined') {
     global.antiDeleteEnabled = true;
 }
 
-// 2. External Plugins Load කිරීම
+// 1. Plugins Load කිරීම
 const events = require('./command');
 const pluginsDir = path.join(__dirname, 'plugins');
 if (fs.existsSync(pluginsDir)) {
@@ -45,7 +36,7 @@ if (fs.existsSync(pluginsDir)) {
     });
 }
 
-// Helper Function: Profile Picture Direct URL grabber
+// Helper: Profile Picture Link Grabber
 async function getProfilePicUrl(bot, jid) {
     try {
         const ppUrl = await bot.profilePictureUrl(jid, 'image');
@@ -55,7 +46,7 @@ async function getProfilePicUrl(bot, jid) {
     }
 }
 
-// 3. Single Bot Instance Starter
+// 2. Single Bot Instance Starter
 async function startSingleBotInstance(sessionId, sessionData, version) {
     const sessionDir = path.join(__dirname, 'sessions', sessionId);
     if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
@@ -99,7 +90,7 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
     });
 
     // -------------------------------------------------------------
-    // 👋 GROUP WELCOME EVENT ENGINE (FIXED)
+    // 👋 GROUP WELCOME ENGINE
     // -------------------------------------------------------------
     rememberBot.ev.on('group-participants.update', async (update) => {
         try {
@@ -110,7 +101,6 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
 
             if (action === 'add') {
                 for (let num of participants) {
-                    // Bot එක තමන්වම Welcome කරගැනීම වැළැක්වීම
                     if (num === botJid) continue;
 
                     const userJid = num;
@@ -122,12 +112,9 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
                         const groupMetadata = await rememberBot.groupMetadata(id);
                         groupName = groupMetadata.subject || "Group";
                         memberCount = groupMetadata.participants ? groupMetadata.participants.length : "1+";
-                    } catch (e) {
-                        console.log("Group Metadata Fetch Error:", e.message);
-                    }
+                    } catch (e) {}
 
                     const ppUrl = await getProfilePicUrl(rememberBot, userJid);
-
                     const welcomeImgUrl = `https://api.popcat.xyz/welcomecard?background=https://i.ibb.co/4M34dqb/wallpaper.jpg&text1=${encodeURIComponent(userJid.split('@')[0])}&text2=Welcome+To+${encodeURIComponent(groupName.replace(/[^a-zA-Z0-9 ]/g, ""))}&text3=Member+${memberCount}&avatar=${encodeURIComponent(ppUrl)}`;
 
                     const welcomeText = `👋 *WELCOME TO THE GROUP!* 👋\n\n` +
@@ -149,29 +136,57 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
     });
 
     // -------------------------------------------------------------
-    // 🗑️ ANTI-DELETE RECOVERY LISTENER
+    // 🗑️ BUILT-IN RELIABLE ANTI-DELETE ENGINE
     // -------------------------------------------------------------
     rememberBot.ev.on('messages.update', async (updates) => {
         try {
             if (global.antiDeleteEnabled === false) return;
-            if (antiDelete && typeof antiDelete.onDelete === 'function') {
-                await antiDelete.onDelete(rememberBot, updates);
+
+            for (const update of updates) {
+                if (update.update && update.update.protocolMessage && update.update.protocolMessage.type === 0) {
+                    const deletedKey = update.update.protocolMessage.key;
+                    const deletedMsgId = deletedKey.id;
+
+                    if (msgStore.has(deletedMsgId)) {
+                        const originalMessage = msgStore.get(deletedMsgId);
+                        const chatJid = deletedKey.remoteJid;
+                        const deleterJid = deletedKey.participant || chatJid;
+
+                        const deletedBy = `@${deleterJid.split('@')[0]}`;
+                        const deletedCaption = `⚠️ *DELETED MESSAGE DETECTED!* ⚠️\n\n` +
+                                               `👤 *Deleted By:* ${deletedBy}\n\n` +
+                                               `👇 *Original Message:*`;
+
+                        await rememberBot.sendMessage(chatJid, {
+                            text: deletedCaption,
+                            mentions: [deleterJid]
+                        });
+
+                        // Forward or re-send the saved original message
+                        await rememberBot.sendMessage(chatJid, { forward: originalMessage }, { quoted: originalMessage });
+                    }
+                }
             }
         } catch (e) {
-            console.log("Anti-Delete Event Error:", e.message);
+            console.log("Anti-Delete Engine Error:", e.message);
         }
     });
 
     // -------------------------------------------------------------
-    // 💬 MAIN MESSAGE & COMMAND HANDLER
+    // 💬 MESSAGE & COMMAND HANDLER
     // -------------------------------------------------------------
     rememberBot.ev.on('messages.upsert', async (chatUpdate) => {
         try {
             const mek = chatUpdate.messages[0];
             if (!mek || !mek.message) return;
 
-            if (antiDelete && typeof antiDelete.onMessage === 'function') {
-                await antiDelete.onMessage(rememberBot, mek);
+            // 1. Anti-Delete සඳහා Messages Cache කිරීම (Max 1000 Messages)
+            if (mek.key && mek.key.id) {
+                msgStore.set(mek.key.id, mek);
+                if (msgStore.size > 1000) {
+                    const firstKey = msgStore.keys().next().value;
+                    msgStore.delete(firstKey);
+                }
             }
 
             const msgId = mek.key.id;
@@ -252,7 +267,7 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
     });
 }
 
-// 4. Dynamic Session Checker
+// 3. Dynamic Session Checker
 async function checkForNewSessions() {
     try {
         if (mongoose.connection.readyState !== 1) return;
@@ -279,7 +294,7 @@ async function checkForNewSessions() {
     }
 }
 
-// 5. Main Launcher
+// 4. Main Launcher
 async function startAllBots() {
     const mongoUri = process.env.MONGODB; 
     if (!mongoUri) return console.log("❌ MONGODB Variable is missing!");
