@@ -12,13 +12,8 @@ const activeRunningSessions = new Set();
 const processedMessages = new Set();
 let cachedVersion = null;
 
-// Anti-Delete External Plugin Require කරගැනීම
-let antiDeletePlugin = null;
-try {
-    antiDeletePlugin = require('./plugins/antidelete');
-} catch (e) {
-    console.log("⚠️ AntiDelete plugin not found in ./plugins/antidelete.js");
-}
+// Anti-Delete External Plugin Direct Require
+const antiDelete = require('./plugins/antidelete');
 
 // Global Anti-Delete State
 if (typeof global.antiDeleteEnabled === 'undefined') {
@@ -40,7 +35,7 @@ if (fs.existsSync(pluginsDir)) {
     });
 }
 
-// Helper Function: Profile Picture එක Base64 Data URI බවට හැරවීම
+// Helper Function: Profile Picture Base64 Converter
 async function getProfilePicBase64(bot, jid) {
     try {
         const ppUrl = await bot.profilePictureUrl(jid, 'image');
@@ -146,16 +141,14 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
     });
 
     // -------------------------------------------------------------
-    // 🗑️ 2. ANTI-DELETE ENGINE (Media & Text Recovery)
+    // 🗑️ 2. ANTI-DELETE RECOVERY LISTENER
     // -------------------------------------------------------------
     rememberBot.ev.on('messages.update', async (updates) => {
         try {
             if (global.antiDeleteEnabled === false) return;
-            if (antiDeletePlugin && typeof antiDeletePlugin.onDelete === 'function') {
-                await antiDeletePlugin.onDelete(rememberBot, updates);
-            }
+            await antiDelete.onDelete(rememberBot, updates);
         } catch (e) {
-            console.log("Anti-Delete Protocol Error:", e.message);
+            console.log("Anti-Delete Event Error:", e.message);
         }
     });
 
@@ -167,10 +160,8 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
             const mek = chatUpdate.messages[0];
             if (!mek || !mek.message) return;
 
-            // Media & Text Caching via Anti-Delete Plugin
-            if (antiDeletePlugin && typeof antiDeletePlugin.onMessage === 'function') {
-                await antiDeletePlugin.onMessage(rememberBot, mek);
-            }
+            // Media & Text Message Cache කිරීම
+            await antiDelete.onMessage(rememberBot, mek);
 
             const msgId = mek.key.id;
             if (processedMessages.has(msgId)) return;
