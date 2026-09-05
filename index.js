@@ -113,7 +113,7 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
                     const ppUrl = await getProfilePicUrl(rememberBot, userJid);
 
                     // Image Link Generator (Popcat Welcome Card)
-                    const welcomeImgUrl = `https://raw.githubusercontent.com/REMEMBER-NK/Bot-helpur/refs/heads/main/31322071b2dd4757a80b264729c42ee7.png(userJid.split('@')[0])}&text2=Welcome+To+${encodeURIComponent(groupName.replace(/[^a-zA-Z0-9 ]/g, ""))}&text3=Member+${memberCount}&avatar=${encodeURIComponent(ppUrl)}`;
+                    const welcomeImgUrl = `https://raw.githubusercontent.com/REMEMBER-NK/Bot-helpur/refs/heads/main/31322071b2dd4757a80b264729c42ee7.png`;
 
                     const welcomeText = `👋 *WELCOME TO THE GROUP!* 👋\n\n` +
                                         `👤 *User:* ${userName}\n` +
@@ -128,7 +128,7 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
                     });
                 }
             }
-        } catch (err) {
+        } catch (err) { 
             console.log("Welcome Event Error:", err.message);
         }
     });
