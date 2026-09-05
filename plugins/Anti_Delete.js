@@ -1,7 +1,9 @@
 const { cmd } = require("../command");
 
-// Anti-Delete State (Global Toggle)
-global.antiDeleteEnabled = true; // Default ON
+// Anti-Delete Default State
+if (typeof global.antiDeleteEnabled === 'undefined') {
+    global.antiDeleteEnabled = true;
+}
 
 cmd(
   {
