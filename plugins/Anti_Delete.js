@@ -14,19 +14,9 @@ const CLEANUP_TIME = 10 * 60 * 1000;
 
 function unwrapMessage(message) {
   if (!message) return null;
-
-  if (message.ephemeralMessage) {
-    return unwrapMessage(message.ephemeralMessage.message);
-  }
-
-  if (message.viewOnceMessageV2) {
-    return unwrapMessage(message.viewOnceMessageV2.message);
-  }
-
-  if (message.viewOnceMessage) {
-    return unwrapMessage(message.viewOnceMessage.message);
-  }
-
+  if (message.ephemeralMessage) return unwrapMessage(message.ephemeralMessage.message);
+  if (message.viewOnceMessageV2) return unwrapMessage(message.viewOnceMessageV2.message);
+  if (message.viewOnceMessage) return unwrapMessage(message.viewOnceMessage.message);
   return message;
 }
 
@@ -57,6 +47,7 @@ module.exports = {
     const cleanMessage = unwrapMessage(msg.message);
     if (!cleanMessage) return;
 
+    // Message එක Memory එකේ Save කිරීම
     messageStore.set(keyId, {
       key: msg.key,
       message: cleanMessage,
@@ -95,47 +86,44 @@ module.exports = {
       await fs.promises.writeFile(filePath, buffer);
       mediaStore.set(keyId, filePath);
 
-      setTimeout(() => {
-        messageStore.delete(keyId);
-        if (mediaStore.has(keyId)) {
-          try { fs.unlinkSync(mediaStore.get(keyId)); } catch {}
-          mediaStore.delete(keyId);
-        }
-      }, CLEANUP_TIME);
-
     } catch (err) {
       console.log('❌ AntiDelete media download error:', err.message);
     }
+
+    // Auto Cleanup
+    setTimeout(() => {
+      messageStore.delete(keyId);
+      if (mediaStore.has(keyId)) {
+        try { fs.unlinkSync(mediaStore.get(keyId)); } catch {}
+        mediaStore.delete(keyId);
+      }
+    }, CLEANUP_TIME);
   },
 
   onDelete: async (conn, updates) => {
     for (const update of updates) {
-      const key = update?.key;
-      if (!key?.id) continue;
+      // Baileys Protocol Message (Revoke/Delete) Detect කිරීම
+      const isProtocolDelete = update.update?.protocolMessage?.type === 0;
+      const keyId = isProtocolDelete ? update.update.protocolMessage.key.id : update.key?.id;
 
-      const isDelete =
-        update.action === 'delete' ||
-        update.update?.message === null;
+      if (!keyId) continue;
 
-      if (!isDelete) continue;
-
-      const keyId = key.id;
       const stored = messageStore.get(keyId);
       if (!stored) continue;
 
-      const from = key.remoteJid;
-      const sender = key.participant || from;
+      const from = update.key?.remoteJid || stored.remoteJid;
+      const deleter = update.key?.participant || update.key?.remoteJid || from;
+      const sender = stored.key.participant || stored.key.remoteJid || from;
 
-      let caption =
-`🗑️ *Deleted Message Recovered*
-
-👤 *Sender:* @${sender.split('@')[0]}
-🕒 *Time:* ${new Date().toLocaleString()}`;
+      let caption = `🗑️ *Deleted Message Recovered*\n\n` +
+                    `👤 *Deleted By:* @${deleter.split('@')[0]}\n` +
+                    `👤 *Original Sender:* @${sender.split('@')[0]}\n` +
+                    `🕒 *Time:* ${new Date().toLocaleString()}`;
 
       try {
         const mediaPath = mediaStore.get(keyId);
         if (mediaPath && fs.existsSync(mediaPath)) {
-          const opts = { caption, mentions: [sender] };
+          const opts = { caption, mentions: [deleter, sender] };
 
           if (mediaPath.endsWith('.jpg')) {
             await conn.sendMessage(from, { image: { url: mediaPath }, ...opts });
@@ -143,13 +131,13 @@ module.exports = {
             await conn.sendMessage(from, { video: { url: mediaPath }, ...opts });
           } else if (mediaPath.endsWith('.webp')) {
             await conn.sendMessage(from, { sticker: { url: mediaPath } });
-            await conn.sendMessage(from, { text: caption, mentions: [sender] });
+            await conn.sendMessage(from, { text: caption, mentions: [deleter, sender] });
           } else if (mediaPath.endsWith('.ogg')) {
             await conn.sendMessage(from, {
               audio: { url: mediaPath },
               mimetype: 'audio/ogg; codecs=opus'
             });
-            await conn.sendMessage(from, { text: caption, mentions: [sender] });
+            await conn.sendMessage(from, { text: caption, mentions: [deleter, sender] });
           } else {
             await conn.sendMessage(from, {
               document: { url: mediaPath },
@@ -157,6 +145,7 @@ module.exports = {
             });
           }
 
+          messageStore.delete(keyId);
           continue;
         }
 
@@ -170,11 +159,11 @@ module.exports = {
           '';
 
         await conn.sendMessage(from, {
-          text: text
-            ? `${caption}\n\n📝 *Message:* ${text}`
-            : caption,
-          mentions: [sender]
+          text: text ? `${caption}\n\n📝 *Message:* ${text}` : caption,
+          mentions: [deleter, sender]
         });
+
+        messageStore.delete(keyId);
 
       } catch (err) {
         console.log('❌ AntiDelete resend error:', err.message);
