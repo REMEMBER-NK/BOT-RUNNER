@@ -12,6 +12,14 @@ const activeRunningSessions = new Set();
 const processedMessages = new Set();
 let cachedVersion = null;
 
+// Anti-Delete External Plugin Require කරගැනීම
+let antiDeletePlugin = null;
+try {
+    antiDeletePlugin = require('./plugins/antidelete');
+} catch (e) {
+    console.log("⚠️ AntiDelete plugin not found in ./plugins/antidelete.js");
+}
+
 // Global Anti-Delete State
 if (typeof global.antiDeleteEnabled === 'undefined') {
     global.antiDeleteEnabled = true;
@@ -22,7 +30,7 @@ const events = require('./command');
 const pluginsDir = path.join(__dirname, 'plugins');
 if (fs.existsSync(pluginsDir)) {
     fs.readdirSync(pluginsDir).forEach((plugin) => {
-        if (path.extname(plugin).toLowerCase() === '.js' && plugin !== 'welcome.js') {
+        if (path.extname(plugin).toLowerCase() === '.js' && plugin !== 'welcome.js' && plugin !== 'antidelete.js') {
             try {
                 require(path.join(pluginsDir, plugin));
             } catch (err) {
@@ -30,6 +38,25 @@ if (fs.existsSync(pluginsDir)) {
             }
         }
     });
+}
+
+// Helper Function: Profile Picture එක Base64 Data URI බවට හැරවීම
+async function getProfilePicBase64(bot, jid) {
+    try {
+        const ppUrl = await bot.profilePictureUrl(jid, 'image');
+        if (!ppUrl) return 'https://i.ibb.co/6BRM12f/avatar-contact.png';
+        
+        const response = await fetch(ppUrl);
+        if (!response.ok) return 'https://i.ibb.co/6BRM12f/avatar-contact.png';
+        
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const mimeType = response.headers.get('content-type') || 'image/jpeg';
+        
+        return `data:${mimeType};base64,${buffer.toString('base64')}`;
+    } catch (e) {
+        return 'https://i.ibb.co/6BRM12f/avatar-contact.png';
+    }
 }
 
 // 2. Single Bot Instance Starter
@@ -76,7 +103,7 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
     });
 
     // -------------------------------------------------------------
-    // 👋 1. GROUP WELCOME EVENT ENGINE (Direct Socket Listening)
+    // 👋 1. GROUP WELCOME EVENT ENGINE
     // -------------------------------------------------------------
     rememberBot.ev.on('group-participants.update', async (update) => {
         try {
@@ -96,14 +123,9 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
                         memberCount = groupMetadata.participants ? groupMetadata.participants.length : "1+";
                     } catch (e) {}
 
-                    let ppUser;
-                    try {
-                        ppUser = await rememberBot.profilePictureUrl(userJid, 'image');
-                    } catch {
-                        ppUser = 'https://i.ibb.co/6BRM12f/avatar-contact.png';
-                    }
+                    const ppUserBase64 = await getProfilePicBase64(rememberBot, userJid);
 
-                    const welcomeImgUrl = `https://api.popcat.xyz/welcomecard?background=https://i.ibb.co/4M34dqb/wallpaper.jpg&text1=${encodeURIComponent(userJid.split('@')[0])}&text2=Welcome+To+${encodeURIComponent(groupName)}&text3=Member+${memberCount}&avatar=${encodeURIComponent(ppUser)}`;
+                    const welcomeImgUrl = `https://api.popcat.xyz/welcomecard?background=https://i.ibb.co/4M34dqb/wallpaper.jpg&text1=${encodeURIComponent(userJid.split('@')[0])}&text2=Welcome+To+${encodeURIComponent(groupName)}&text3=Member+${memberCount}&avatar=${encodeURIComponent(ppUserBase64)}`;
 
                     const welcomeText = `👋 *WELCOME TO THE GROUP!* 👋\n\n` +
                                         `👤 *User:* ${userName}\n` +
@@ -124,39 +146,13 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
     });
 
     // -------------------------------------------------------------
-    // 🗑️ 2. ANTI-DELETE ENGINE (Direct Memory Storage & Protocol Capture)
+    // 🗑️ 2. ANTI-DELETE ENGINE (Media & Text Recovery)
     // -------------------------------------------------------------
-    const messageStore = new Map();
-
     rememberBot.ev.on('messages.update', async (updates) => {
         try {
             if (global.antiDeleteEnabled === false) return;
-
-            for (const update of updates) {
-                if (update.update && update.update.protocolMessage && update.update.protocolMessage.type === 0) {
-                    const deletedKey = update.update.protocolMessage.key;
-                    const deletedMsg = messageStore.get(deletedKey.id);
-
-                    if (deletedMsg) {
-                        const from = update.key.remoteJid;
-                        const deleterJid = update.key.participant || update.key.remoteJid;
-                        const senderJid = deletedMsg.key.participant || deletedMsg.key.remoteJid;
-
-                        const captionText = `⚠️ *DELETED MESSAGE DETECTED!* ⚠️\n\n` +
-                                            `👤 *Deleted By:* @${deleterJid.split('@')[0]}\n` +
-                                            `✉️ *Original Sender:* @${senderJid.split('@')[0]}\n` +
-                                            `🏰 *Chat:* ${from.endsWith('@g.us') ? 'Group Chat' : 'Private Chat'}\n\n` +
-                                            `> Powered by REMEMBER-MD`;
-
-                        await rememberBot.sendMessage(from, {
-                            text: captionText,
-                            mentions: [deleterJid, senderJid]
-                        });
-
-                        await rememberBot.sendMessage(from, { forward: deletedMsg }, { quoted: deletedMsg });
-                        messageStore.delete(deletedKey.id);
-                    }
-                }
+            if (antiDeletePlugin && typeof antiDeletePlugin.onDelete === 'function') {
+                await antiDeletePlugin.onDelete(rememberBot, updates);
             }
         } catch (e) {
             console.log("Anti-Delete Protocol Error:", e.message);
@@ -171,10 +167,9 @@ async function startSingleBotInstance(sessionId, sessionData, version) {
             const mek = chatUpdate.messages[0];
             if (!mek || !mek.message) return;
 
-            // Anti-Delete Storage (10 Min Caching)
-            if (!mek.key.fromMe) {
-                messageStore.set(mek.key.id, mek);
-                setTimeout(() => messageStore.delete(mek.key.id), 10 * 60 * 1000);
+            // Media & Text Caching via Anti-Delete Plugin
+            if (antiDeletePlugin && typeof antiDeletePlugin.onMessage === 'function') {
+                await antiDeletePlugin.onMessage(rememberBot, mek);
             }
 
             const msgId = mek.key.id;
