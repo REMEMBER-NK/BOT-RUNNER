@@ -1,38 +1,184 @@
-const { cmd } = require("../command");
+const fs = require('fs');
+const path = require('path');
+const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 
-// Anti-Delete Default State
-if (typeof global.antiDeleteEnabled === 'undefined') {
-    global.antiDeleteEnabled = true;
+const tempFolder = path.join(__dirname, '../temp');
+if (!fs.existsSync(tempFolder)) {
+  fs.mkdirSync(tempFolder, { recursive: true });
 }
 
-cmd(
-  {
-    pattern: "antidelete",
-    alias: ["antidel"],
-    react: "🗑️",
-    desc: "Turn Anti-Delete feature ON or OFF",
-    category: "owner",
-    filename: __filename
-  },
-  async (remember, mek, m, { reply, args, isOwner }) => {
+const messageStore = new Map();
+const mediaStore = new Map(); 
+
+const CLEANUP_TIME = 10 * 60 * 1000;
+
+function unwrapMessage(message) {
+  if (!message) return null;
+
+  if (message.ephemeralMessage) {
+    return unwrapMessage(message.ephemeralMessage.message);
+  }
+
+  if (message.viewOnceMessageV2) {
+    return unwrapMessage(message.viewOnceMessageV2.message);
+  }
+
+  if (message.viewOnceMessage) {
+    return unwrapMessage(message.viewOnceMessage.message);
+  }
+
+  return message;
+}
+
+function getExtension(type, msg) {
+  switch (type) {
+    case 'imageMessage': return '.jpg';
+    case 'videoMessage': return '.mp4';
+    case 'audioMessage': return '.ogg';
+    case 'stickerMessage': return '.webp';
+    case 'documentMessage':
+      return msg.documentMessage?.fileName
+        ? path.extname(msg.documentMessage.fileName)
+        : '.bin';
+    default:
+      return '.bin';
+  }
+}
+
+module.exports = {
+  name: 'antidelete',
+
+  onMessage: async (conn, msg) => {
+    if (!msg?.message || msg.key.fromMe) return;
+
+    const keyId = msg.key.id;
+    const remoteJid = msg.key.remoteJid;
+
+    const cleanMessage = unwrapMessage(msg.message);
+    if (!cleanMessage) return;
+
+    messageStore.set(keyId, {
+      key: msg.key,
+      message: cleanMessage,
+      remoteJid
+    });
+
+    const type = Object.keys(cleanMessage)[0];
+    if (!type) return;
+
+    const mediaTypes = [
+      'imageMessage',
+      'videoMessage',
+      'audioMessage',
+      'stickerMessage',
+      'documentMessage'
+    ];
+
+    if (!mediaTypes.includes(type)) return;
+
     try {
-      if (!isOwner) return reply("❌ මෙම Command එක භාවිත කළ හැක්කේ Bot Owner ට පමණි!");
+      const stream = await downloadContentFromMessage(
+        cleanMessage[type],
+        type.replace('Message', '')
+      );
 
-      const option = args[0]?.toLowerCase();
-
-      if (option === "on") {
-        global.antiDeleteEnabled = true;
-        return reply("✅ *Anti-Delete Feature සාර්ථකව ON කරන ලදී!*");
-      } else if (option === "off") {
-        global.antiDeleteEnabled = false;
-        return reply("❌ *Anti-Delete Feature OFF කරන ලදී!*");
-      } else {
-        return reply(`📌 *භාවිතය:* \n.antidelete on - On කිරීමට\n.antidelete off - Off කිරීමට\n\n*දැනට තත්ත්වය:* ${global.antiDeleteEnabled ? "ON 🟢" : "OFF 🔴"}`);
+      let buffer = Buffer.from([]);
+      for await (const chunk of stream) {
+        buffer = Buffer.concat([buffer, chunk]);
       }
 
-    } catch (e) {
-      console.error(e);
-      reply("❌ Anti-Delete Toggle කිරීමේදී දෝෂයක් ආවා!");
+      if (!buffer.length) return;
+
+      const ext = getExtension(type, cleanMessage);
+      const filePath = path.join(tempFolder, `${keyId}${ext}`);
+
+      await fs.promises.writeFile(filePath, buffer);
+      mediaStore.set(keyId, filePath);
+
+      setTimeout(() => {
+        messageStore.delete(keyId);
+        if (mediaStore.has(keyId)) {
+          try { fs.unlinkSync(mediaStore.get(keyId)); } catch {}
+          mediaStore.delete(keyId);
+        }
+      }, CLEANUP_TIME);
+
+    } catch (err) {
+      console.log('❌ AntiDelete media download error:', err.message);
+    }
+  },
+
+  onDelete: async (conn, updates) => {
+    for (const update of updates) {
+      const key = update?.key;
+      if (!key?.id) continue;
+
+      const isDelete =
+        update.action === 'delete' ||
+        update.update?.message === null;
+
+      if (!isDelete) continue;
+
+      const keyId = key.id;
+      const stored = messageStore.get(keyId);
+      if (!stored) continue;
+
+      const from = key.remoteJid;
+      const sender = key.participant || from;
+
+      let caption =
+`🗑️ *Deleted Message Recovered*
+
+👤 *Sender:* @${sender.split('@')[0]}
+🕒 *Time:* ${new Date().toLocaleString()}`;
+
+      try {
+        const mediaPath = mediaStore.get(keyId);
+        if (mediaPath && fs.existsSync(mediaPath)) {
+          const opts = { caption, mentions: [sender] };
+
+          if (mediaPath.endsWith('.jpg')) {
+            await conn.sendMessage(from, { image: { url: mediaPath }, ...opts });
+          } else if (mediaPath.endsWith('.mp4')) {
+            await conn.sendMessage(from, { video: { url: mediaPath }, ...opts });
+          } else if (mediaPath.endsWith('.webp')) {
+            await conn.sendMessage(from, { sticker: { url: mediaPath } });
+            await conn.sendMessage(from, { text: caption, mentions: [sender] });
+          } else if (mediaPath.endsWith('.ogg')) {
+            await conn.sendMessage(from, {
+              audio: { url: mediaPath },
+              mimetype: 'audio/ogg; codecs=opus'
+            });
+            await conn.sendMessage(from, { text: caption, mentions: [sender] });
+          } else {
+            await conn.sendMessage(from, {
+              document: { url: mediaPath },
+              ...opts
+            });
+          }
+
+          continue;
+        }
+
+        const msgObj = stored.message;
+        let text =
+          msgObj.conversation ||
+          msgObj.extendedTextMessage?.text ||
+          msgObj.imageMessage?.caption ||
+          msgObj.videoMessage?.caption ||
+          msgObj.documentMessage?.caption ||
+          '';
+
+        await conn.sendMessage(from, {
+          text: text
+            ? `${caption}\n\n📝 *Message:* ${text}`
+            : caption,
+          mentions: [sender]
+        });
+
+      } catch (err) {
+        console.log('❌ AntiDelete resend error:', err.message);
+      }
     }
   }
-);
+};
