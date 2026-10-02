@@ -1,4 +1,4 @@
-name: 24/7 WhatsApp Bot
+Name: 24/7 WhatsApp Bot
 
 on:
   push:
@@ -26,7 +26,9 @@ jobs:
 
       - name: Run Bot
         env:
+          MONGODB: ${{ secrets.MONGODB }}
           MONGO_URI: ${{ secrets.MONGO_URI }}
+          OWNER_NUM: ${{ secrets.OWNER_NUM }}
         # පැය 5.5න් auto stop වෙලා next cron එකට ඉඩ දීම
         run: |
           timeout 19800s node index.js || true
