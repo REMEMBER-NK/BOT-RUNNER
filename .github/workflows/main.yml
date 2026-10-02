@@ -25,10 +25,4 @@ jobs:
         run: npm install
 
       - name: Run Bot
-        env:
-          MONGODB: ${{ secrets.MONGODB }}
-          MONGO_URI: ${{ secrets.MONGO_URI }}
-          OWNER_NUM: ${{ secrets.OWNER_NUM }}
-        # පැය 5.5න් auto stop වෙලා next cron එකට ඉඩ දීම
-        run: |
-          timeout 19800s node index.js || true
+        run: node index.js
