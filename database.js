@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 
 // Clean Connection String
-const MONGO_URI = process.env.MONGODB || process.env.MONGO_URI || "mongodb+srv://gamingkolla788_db_user:QJ7VrzsikZba7QV@cluster0.imw2kqu.mongodb.net/ROBIN-MD?retryWrites=true&w=majority";
+const MONGO_URI = process.env.MONGODB || process.env.MONGO_URI || "mongodb+srv://gamingkolla788_db_user:Skhetti$78@cluster0.imw2kqu.mongodb.net/?appName=Cluster0";
 
 mongoose.connect(MONGO_URI, {
   serverSelectionTimeoutMS: 5000, // Timeout fast if failed
