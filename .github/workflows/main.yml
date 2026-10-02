@@ -1,4 +1,4 @@
-Name: 24/7 WhatsApp Bot
+name: 24/7 WhatsApp Bot
 
 on:
   push:
