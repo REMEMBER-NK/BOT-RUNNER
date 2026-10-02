@@ -4,7 +4,6 @@ on:
   push:
     branches: [ main ]
   schedule:
-    # පැය 5කට සැරයක් Auto Start වීම
     - cron: '0 */5 * * *'
   workflow_dispatch:
 
@@ -25,4 +24,7 @@ jobs:
         run: npm install
 
       - name: Run Bot
+        env:
+          MONGODB: mongodb+srv://gamingkolla788_db_user:Kolla123@cluster0.imw2kqu.mongodb.net/?appName=Cluster0
+          OWNER_NUM: 94761576618
         run: node index.js
