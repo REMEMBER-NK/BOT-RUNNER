@@ -1,0 +1,32 @@
+name: 24/7 WhatsApp Bot
+
+on:
+  push:
+    branches: [ main ]
+  schedule:
+    # පැය 5කට සැරයක් Auto Start වීම
+    - cron: '0 */5 * * *'
+  workflow_dispatch:
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Run Bot
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+        # පැය 5.5න් auto stop වෙලා next cron එකට ඉඩ දීම
+        run: |
+          timeout 19800s node index.js || true
