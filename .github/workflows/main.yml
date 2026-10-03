@@ -1,4 +1,4 @@
- name: WhatsApp Bot Test
+name: WhatsApp Bot Test
 
 on:
   workflow_dispatch:
