@@ -1,10 +1,6 @@
-name: 24/7 WhatsApp Bot
+ name: WhatsApp Bot Test
 
 on:
-  push:
-    branches: [ main ]
-  schedule:
-    - cron: '0 */5 * * *'
   workflow_dispatch:
 
 jobs:
